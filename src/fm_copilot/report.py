@@ -562,9 +562,15 @@ def _generate_narrative(report_data: dict, api_key: str, model: str) -> dict:
     meta = report_data.get("meta", {})
     club = meta.get("club_name", "the club")
     dof  = meta.get("dof_mode", "edwards")
+    club_context = meta.get("club_context", "").strip()
 
-    prompt = f"""You are the Director of Football '{dof}' analysing {club}'s squad.
+    context_block = (
+        f"\nCLUB CONTEXT (use this to shape your analysis — formation, objectives, budget):\n{club_context}\n"
+        if club_context else ""
+    )
 
+    prompt = f"""You are the Director of Football analysing {club}'s squad in the style of '{dof}'.
+{context_block}
 SQUAD (top 20 by role score):
 {squad_summary}
 
@@ -574,7 +580,7 @@ GAPS:
 SHORTLIST:
 {shortlist_summary}
 
-Write a Director of Football briefing to the manager. Return ONLY a JSON object:
+Write a Director of Football briefing to the manager. Refer to the club context above — reflect their formation, objectives, and budget in your analysis. Return ONLY a JSON object:
 {{
   "executive_summary": "3-4 paragraphs of honest squad verdict (paragraphs separated by \\n\\n)",
   "strategic_outlook_this_window": "2-3 sentences on immediate transfer actions",

@@ -399,6 +399,15 @@ def run_report(config: dict) -> str:
     meta    = _extract_meta_from_context(ctx, config)
     budget  = _extract_budget_from_context(ctx)
 
+    # Pass full context text to the narrative so the AI knows the playing style,
+    # objectives, and budget — not just the club name
+    ctx_sections = []
+    for key in ("club", "playing-style", "window-priorities", "dof-profile"):
+        text = ctx.get(key, "").strip()
+        if text:
+            ctx_sections.append(text)
+    meta["club_context"] = "\n\n---\n\n".join(ctx_sections)
+
     # Priority positions
     raw_prios   = _extract_priorities_from_context(ctx)
     pri_configs = _build_priorities_config(raw_prios, config)
