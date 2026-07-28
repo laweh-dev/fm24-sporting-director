@@ -157,37 +157,77 @@ def _compare_priorities(
     }
 
 
-def _build_priorities_config(priority_labels: list[str], cfg: dict) -> list[dict]:
+def _build_priorities_config(
+    priority_labels: list[str],
+    cfg: dict,
+    system_positions: list | None = None,
+) -> list[dict]:
     """
-    Convert plain position labels (e.g. "RB", "LW") to priority dicts
-    consumable by analysis.build_shortlist().
+    Convert position labels from the user's formation (e.g. "RB", "RWB", "ST")
+    to priority dicts consumable by analysis.build_shortlist().
     """
-    from .analysis import SYSTEM_POSITIONS
-
-    # Map common shorthand to role_key and position_codes
+    # Covers every position label that can appear across all 8 supported formations.
     pos_map: dict[str, dict] = {
         "GK":  {"role_keys": ["sweeper_keeper", "goalkeeper"],
                 "position_codes": {"GK"}, "sides": None},
-        "RB":  {"role_keys": ["inverted_full_back", "complete_wing_back", "wing_back"],
+        "RB":  {"role_keys": ["inverted_full_back", "full_back", "complete_wing_back", "wing_back"],
                 "position_codes": {"D", "WB"}, "sides": {"R"}},
-        "LB":  {"role_keys": ["inverted_wing_back", "wing_back", "complete_wing_back"],
+        "LB":  {"role_keys": ["inverted_full_back", "inverted_wing_back", "full_back",
+                               "wing_back", "complete_wing_back"],
                 "position_codes": {"D", "WB"}, "sides": {"L"}},
-        "CB":  {"role_keys": ["central_defender", "ball_playing_defender", "libero"],
+        "CB":  {"role_keys": ["central_defender", "ball_playing_defender",
+                               "no_nonsense_centre_back", "wide_centre_back"],
                 "position_codes": {"D"}, "sides": {"C"}},
-        "DM":  {"role_keys": ["half_back", "defensive_midfielder", "regista"],
+        "DM":  {"role_keys": ["half_back", "anchor", "defensive_midfielder",
+                               "ball_winning_midfielder", "deep_lying_playmaker", "regista"],
                 "position_codes": {"DM"}, "sides": None},
-        "CM":  {"role_keys": ["box_to_box_midfielder", "mezzala", "deep_lying_playmaker"],
+        "CM":  {"role_keys": ["box_to_box_midfielder", "mezzala", "carrilero",
+                               "central_midfielder", "advanced_playmaker",
+                               "roaming_playmaker", "ball_winning_midfielder", "segundo_volante"],
                 "position_codes": {"M"}, "sides": None},
-        "AM":  {"role_keys": ["advanced_playmaker", "enganche", "shadow_striker"],
+        "AM":  {"role_keys": ["advanced_playmaker", "shadow_striker", "enganche",
+                               "trequartista", "attacking_midfielder"],
                 "position_codes": {"AM"}, "sides": None},
-        "LW":  {"role_keys": ["winger", "wide_midfielder", "inverted_winger"],
+        "RAM": {"role_keys": ["advanced_playmaker", "shadow_striker", "attacking_midfielder"],
+                "position_codes": {"AM"}, "sides": {"R"}},
+        "LAM": {"role_keys": ["advanced_playmaker", "shadow_striker", "attacking_midfielder"],
+                "position_codes": {"AM"}, "sides": {"L"}},
+        "LW":  {"role_keys": ["winger", "inverted_winger", "inside_forward",
+                               "defensive_winger", "wide_playmaker", "raumdeuter"],
                 "position_codes": {"M", "AM"}, "sides": {"L"}},
-        "RW":  {"role_keys": ["inverted_winger", "wide_midfielder", "winger"],
+        "RW":  {"role_keys": ["inverted_winger", "winger", "inside_forward",
+                               "defensive_winger", "wide_playmaker", "raumdeuter"],
                 "position_codes": {"M", "AM"}, "sides": {"R"}},
-        "ST":  {"role_keys": ["deep_lying_forward", "pressing_forward", "advanced_forward",
-                               "complete_forward"],
+        "RM":  {"role_keys": ["winger", "inverted_winger", "inside_forward",
+                               "defensive_winger", "wide_playmaker"],
+                "position_codes": {"M", "AM"}, "sides": {"R"}},
+        "LM":  {"role_keys": ["winger", "inverted_winger", "inside_forward",
+                               "defensive_winger", "wide_playmaker"],
+                "position_codes": {"M", "AM"}, "sides": {"L"}},
+        "RWB": {"role_keys": ["wing_back", "complete_wing_back", "inverted_wing_back"],
+                "position_codes": {"WB"}, "sides": {"R"}},
+        "LWB": {"role_keys": ["wing_back", "complete_wing_back", "inverted_wing_back"],
+                "position_codes": {"WB"}, "sides": {"L"}},
+        "ST":  {"role_keys": ["advanced_forward", "pressing_forward", "complete_forward",
+                               "deep_lying_forward", "false_nine", "target_forward", "poacher"],
                 "position_codes": {"ST"}, "sides": None},
     }
+
+    # If the user's formation has roles, inject the chosen role as the first key so
+    # the shortlist prioritises the exact role the user plays, not generic alternatives.
+    if system_positions:
+        sp_by_pos: dict[str, str] = {}  # pos_label → role_key (first occurrence)
+        for pos_label, _, role_key in system_positions:
+            if pos_label not in sp_by_pos:
+                sp_by_pos[pos_label] = role_key
+        for pos_label, role_key in sp_by_pos.items():
+            norm = pos_label.strip().upper()
+            if norm in pos_map and role_key not in pos_map[norm]["role_keys"]:
+                pos_map[norm]["role_keys"].insert(0, role_key)
+            elif norm in pos_map and role_key in pos_map[norm]["role_keys"]:
+                # Move it to front
+                pos_map[norm]["role_keys"].remove(role_key)
+                pos_map[norm]["role_keys"].insert(0, role_key)
 
     priorities = []
     for label in priority_labels:
@@ -195,9 +235,9 @@ def _build_priorities_config(priority_labels: list[str], cfg: dict) -> list[dict
         if norm in pos_map:
             entry = {"label": label, **pos_map[norm]}
         else:
-            # Unknown position label — try matching against SYSTEM_POSITIONS role labels
+            # Unknown label — try matching against the user's system_positions
             entry = {"label": label, "role_keys": [], "position_codes": set(), "sides": None}
-            for pos_code, role_label, role_key in SYSTEM_POSITIONS:
+            for pos_code, role_label, role_key in (system_positions or []):
                 if norm in (pos_code.upper(), role_label.upper()):
                     entry["role_keys"] = [role_key]
                     entry["position_codes"] = {pos_code}
@@ -485,12 +525,19 @@ def run_report(config: dict) -> str:
                 formation, role_map, config.get("roles_file")
             )
             print(f"[pipeline] Formation: {formation} ({len(system_positions)} slots)", flush=True)
+            # Show each slot so the user can verify their role choices were picked up
+            for pos_label, role_label, _ in system_positions:
+                print(f"[pipeline]   {pos_label:5s}→ {role_label}", flush=True)
             for w in tactic_warnings:
                 print(f"[pipeline] ⚠  {w}", flush=True)
         else:
             print("[pipeline] tactic.yaml has no formation — using default system.", flush=True)
     else:
-        print("[pipeline] No tactic.yaml found — using default 4-3-3 system.", flush=True)
+        print(
+            "[pipeline] No tactic.yaml found — using default 4-3-3 system.\n"
+            "[pipeline] Re-run Step 3 in Colab to save your formation selection.",
+            flush=True,
+        )
 
     # API key diagnostic
     api_key = config.get("api_key", "")
@@ -523,8 +570,11 @@ def run_report(config: dict) -> str:
         analysis.get("gaps", []),
         config.get("dof_mode", "edwards"),
         squad=squad,
+        system_positions=system_positions,
     )
-    pri_configs = _build_priorities_config([r["label"] for r in dof_recs], config)
+    pri_configs = _build_priorities_config(
+        [r["label"] for r in dof_recs], config, system_positions=system_positions
+    )
 
     if market:
         annotate_players(market, config.get("roles_file"))

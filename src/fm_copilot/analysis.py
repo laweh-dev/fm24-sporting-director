@@ -350,11 +350,13 @@ def identify_gaps(
 
 # ── DoF priority recommendation ──────────────────────────────────────────────
 
-# First-occurrence mapping from role_key → short position label
-_ROLE_TO_POS: dict[str, str] = {}
-for _pl, _, _rk in SYSTEM_POSITIONS:
-    if _rk not in _ROLE_TO_POS:
-        _ROLE_TO_POS[_rk] = _pl
+def _build_role_to_pos(system_positions: list) -> dict[str, str]:
+    """Build role_key → first position label mapping from a system_positions list."""
+    mapping: dict[str, str] = {}
+    for pos_label, _, role_key in system_positions:
+        if role_key not in mapping:
+            mapping[role_key] = pos_label
+    return mapping
 
 
 def _star_label(stars: int | None) -> str:
@@ -369,6 +371,7 @@ def dof_recommended_priorities(
     dof_mode: str = "edwards",
     top_n: int = 4,
     squad: list[dict] | None = None,
+    system_positions: list | None = None,
 ) -> list[dict]:
     """
     Derive the DoF's recommended priority positions from the gap analysis.
@@ -376,11 +379,15 @@ def dof_recommended_priorities(
     Returns up to top_n items, most urgent first:
         [{label, role_key, severity, capable, strong, data_reason, high_potential_prospect}]
 
-    When squad is provided, also surfaces any high-potential young player (4-5 stars)
-    whose best role matches a gap position — flagged as a development accelerant.
+    system_positions must be the same list passed to run_analysis() so that
+    position labels (GK, RB, ST …) are derived from the user's chosen formation,
+    not the hardcoded default.
     """
     _ORDER = {"critical": 0, "weak": 1, "thin": 2}
     sorted_gaps = sorted(gaps, key=lambda g: (_ORDER.get(g["severity"], 9), g.get("capable", 0)))
+
+    # Build label map from the actual system being analysed
+    _role_to_pos = _build_role_to_pos(system_positions or SYSTEM_POSITIONS)
 
     # Index high-potential young players by their best role
     _high_pot: dict[str, list[str]] = {}  # role_key → [player names]
@@ -394,7 +401,7 @@ def dof_recommended_priorities(
     result: list[dict] = []
     seen: set[str] = set()
     for gap in sorted_gaps:
-        label = _ROLE_TO_POS.get(gap["role"], gap["role"])
+        label = _role_to_pos.get(gap["role"], gap["role"])
         if label in seen:
             continue
         seen.add(label)
