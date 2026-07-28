@@ -1,0 +1,13 @@
+# FM Save Copilot — Python dependencies
+
+# HTML parsing of FM exports
+beautifulsoup4>=4.12.0
+lxml>=5.0.0
+
+# Config files
+pyyaml>=6.0
+
+# AI report generation (users bring their own key)
+anthropic>=0.40.0
+
+# Report charts are rendered client-side via Chart.js (CDN) — no Python charting dep needed

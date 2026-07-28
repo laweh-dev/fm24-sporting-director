@@ -1,0 +1,46 @@
+# ─────────────────────────────────────────────────────────────
+# FM SAVE COPILOT — CONFIG
+# ─────────────────────────────────────────────────────────────
+# 1. Make a COPY of this file in the same folder
+# 2. Rename the copy to:  config.yaml
+# 3. Fill in your API key below
+# 4. Save the file
+#
+# Your key stays on YOUR computer. It is never uploaded anywhere.
+# ─────────────────────────────────────────────────────────────
+
+# Your Anthropic API key (get one at console.anthropic.com)
+# Leave empty ("") to run in FREE mode — analysis only, no written report.
+api_key: ""
+
+# Which AI provider to use.
+#   anthropic  → best quality, needs key above (recommended)
+provider: anthropic
+
+# Which model to use.
+#   claude-haiku-4-5   → cheapest, fast, great for reports (~0.2p each) [DEFAULT]
+#   claude-sonnet-4-6  → higher quality, a bit pricier (~2p each)
+model: claude-haiku-4-5
+
+# Which Director of Football style shapes your report.
+#   edwards  → data-driven, system-first (recommended starting point)
+#   monchi   → market trader, buy-low-sell-high
+#   edu      → profile-first squad building
+dof_mode: edwards
+
+# ─────────────────────────────────────────────────────────────
+# You usually don't need to touch anything below here.
+# ─────────────────────────────────────────────────────────────
+
+# Where your FM exports live (inside the data_uploads/ folder)
+squad_file: data_uploads/squad.html
+market_file: data_uploads/market.html
+
+# Where the finished report is saved
+output_file: output/report.html
+
+# Minimum role-fit score for a market player to appear as a target (0–100)
+candidate_threshold: 65
+
+# How many candidates to show per priority position
+candidates_per_position: 3

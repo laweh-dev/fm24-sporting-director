@@ -1,0 +1,478 @@
+# ─────────────────────────────────────────────────────────────
+# FM SAVE COPILOT — STARTER ROLE LIBRARY
+# ─────────────────────────────────────────────────────────────
+# Attribute weightings for the major FM24 roles.
+# Tiers: key (5x), important (3x), useful (1x)
+#
+# These are sensible defaults based on community consensus and the
+# demands of each role. They are OPINIONS — tune them, argue about
+# them, PR better ones. That's the point.
+#
+# Attribute keys use FM's standard names, lowercased with underscores.
+# ─────────────────────────────────────────────────────────────
+
+# ===================== GOALKEEPERS =====================
+
+goalkeeper:
+  name: "Goalkeeper"
+  short: "GK"
+  positions: ["GK"]
+  duties: ["defend"]
+  attributes:
+    key: [reflexes, one_on_ones, handling, positioning, concentration]
+    important: [agility, command_of_area, aerial_reach, communication, anticipation, decisions]
+    useful: [kicking, throwing, first_touch, bravery, composure]
+
+sweeper_keeper:
+  name: "Sweeper Keeper"
+  short: "SK"
+  positions: ["GK"]
+  duties: ["defend", "support", "attack"]
+  attributes:
+    key: [reflexes, one_on_ones, rushing_out, positioning, agility]
+    important: [command_of_area, kicking, first_touch, passing, anticipation, composure, concentration]
+    useful: [handling, throwing, vision, decisions, acceleration, pace]
+  duty_modifiers:
+    attack:
+      promote: [passing, first_touch, vision]
+    defend:
+      promote: [handling, command_of_area]
+
+# ===================== FULL BACKS =====================
+
+full_back:
+  name: "Full Back"
+  short: "FB"
+  positions: ["DL", "DR"]
+  duties: ["defend", "support", "attack"]
+  attributes:
+    key: [marking, tackling, positioning, concentration, stamina]
+    important: [crossing, dribbling, work_rate, teamwork, anticipation, pace, acceleration]
+    useful: [passing, first_touch, decisions, technique, agility]
+  duty_modifiers:
+    attack:
+      promote: [crossing, dribbling, stamina]
+    defend:
+      promote: [marking, tackling, positioning]
+
+wing_back:
+  name: "Wing Back"
+  short: "WB"
+  positions: ["DL", "DR", "WBL", "WBR"]
+  duties: ["defend", "support", "attack"]
+  attributes:
+    key: [crossing, dribbling, stamina, work_rate, pace, acceleration]
+    important: [marking, tackling, positioning, technique, first_touch, teamwork, off_the_ball]
+    useful: [passing, decisions, anticipation, agility, balance]
+  duty_modifiers:
+    attack:
+      promote: [crossing, off_the_ball, dribbling]
+    defend:
+      promote: [marking, tackling, positioning]
+
+inverted_full_back:
+  name: "Inverted Full Back"
+  short: "IFB"
+  positions: ["DL", "DR"]
+  duties: ["defend", "support"]
+  attributes:
+    key: [positioning, decisions, composure, passing, tackling]
+    important: [marking, concentration, first_touch, technique, teamwork, anticipation, work_rate]
+    useful: [vision, dribbling, stamina, strength, agility]
+  duty_modifiers:
+    defend:
+      promote: [marking, positioning, tackling]
+
+inverted_wing_back:
+  name: "Inverted Wing Back"
+  short: "IWB"
+  positions: ["DL", "DR", "WBL", "WBR"]
+  duties: ["defend", "support", "attack"]
+  attributes:
+    key: [dribbling, passing, first_touch, decisions, composure]
+    important: [technique, vision, off_the_ball, stamina, work_rate, teamwork, positioning]
+    useful: [acceleration, agility, balance, tackling, marking, anticipation]
+  duty_modifiers:
+    attack:
+      promote: [dribbling, off_the_ball, vision]
+    defend:
+      promote: [positioning, tackling, marking]
+
+complete_wing_back:
+  name: "Complete Wing Back"
+  short: "CWB"
+  positions: ["WBL", "WBR"]
+  duties: ["support", "attack"]
+  attributes:
+    key: [crossing, dribbling, technique, stamina, pace, acceleration]
+    important: [passing, first_touch, off_the_ball, work_rate, teamwork, flair, agility, balance]
+    useful: [marking, tackling, positioning, decisions, vision]
+
+# ===================== CENTRAL DEFENDERS =====================
+
+central_defender:
+  name: "Central Defender"
+  short: "CD"
+  positions: ["DC"]
+  duties: ["defend", "stopper", "cover"]
+  attributes:
+    key: [marking, tackling, positioning, heading, concentration]
+    important: [jumping_reach, strength, bravery, anticipation, decisions, composure]
+    useful: [aggression, pace, acceleration, first_touch, passing]
+  duty_modifiers:
+    stopper:
+      promote: [tackling, aggression, bravery]
+    cover:
+      promote: [positioning, anticipation, pace]
+
+ball_playing_defender:
+  name: "Ball Playing Defender"
+  short: "BPD"
+  positions: ["DC"]
+  duties: ["defend", "stopper", "cover"]
+  attributes:
+    key: [marking, tackling, positioning, heading, passing, composure]
+    important: [first_touch, technique, vision, concentration, jumping_reach, strength, anticipation, decisions]
+    useful: [bravery, aggression, pace, acceleration, teamwork]
+  duty_modifiers:
+    cover:
+      promote: [positioning, anticipation, pace]
+
+no_nonsense_centre_back:
+  name: "No-Nonsense Centre Back"
+  short: "NCB"
+  positions: ["DC"]
+  duties: ["defend"]
+  attributes:
+    key: [marking, tackling, heading, positioning, strength]
+    important: [jumping_reach, bravery, aggression, concentration, anticipation]
+    useful: [pace, acceleration, determination, work_rate]
+
+wide_centre_back:
+  name: "Wide Centre Back"
+  short: "WCB"
+  positions: ["DC"]
+  duties: ["defend", "support", "attack"]
+  attributes:
+    key: [marking, tackling, positioning, pace, acceleration, dribbling]
+    important: [heading, strength, first_touch, technique, stamina, work_rate, anticipation]
+    useful: [passing, crossing, off_the_ball, composure, agility]
+
+# ===================== DEFENSIVE MIDFIELD =====================
+
+defensive_midfielder:
+  name: "Defensive Midfielder"
+  short: "DM"
+  positions: ["DM"]
+  duties: ["defend", "support"]
+  attributes:
+    key: [positioning, tackling, concentration, anticipation, work_rate]
+    important: [marking, composure, decisions, teamwork, passing, stamina, strength]
+    useful: [first_touch, aggression, bravery, vision, determination]
+
+anchor:
+  name: "Anchor Man"
+  short: "ANC"
+  positions: ["DM"]
+  duties: ["defend"]
+  attributes:
+    key: [marking, tackling, positioning, concentration, anticipation]
+    important: [decisions, teamwork, composure, strength, work_rate]
+    useful: [passing, first_touch, aggression, bravery, stamina]
+
+half_back:
+  name: "Half Back"
+  short: "HB"
+  positions: ["DM"]
+  duties: ["defend"]
+  attributes:
+    key: [positioning, tackling, marking, anticipation, concentration]
+    important: [composure, decisions, teamwork, passing, first_touch, strength, jumping_reach]
+    useful: [heading, bravery, work_rate, stamina, aggression]
+
+deep_lying_playmaker:
+  name: "Deep Lying Playmaker"
+  short: "DLP"
+  positions: ["DM", "MC"]
+  duties: ["defend", "support"]
+  attributes:
+    key: [passing, vision, decisions, composure, first_touch, technique]
+    important: [teamwork, positioning, anticipation, concentration, flair, work_rate]
+    useful: [tackling, marking, off_the_ball, balance, stamina]
+
+ball_winning_midfielder:
+  name: "Ball Winning Midfielder"
+  short: "BWM"
+  positions: ["DM", "MC"]
+  duties: ["defend", "support"]
+  attributes:
+    key: [tackling, work_rate, stamina, aggression, anticipation]
+    important: [positioning, marking, teamwork, bravery, concentration, strength, determination]
+    useful: [passing, first_touch, composure, decisions, agility]
+
+regista:
+  name: "Regista"
+  short: "REG"
+  positions: ["DM"]
+  duties: ["support"]
+  attributes:
+    key: [passing, vision, technique, flair, decisions, composure]
+    important: [first_touch, off_the_ball, teamwork, anticipation, dribbling, balance]
+    useful: [tackling, positioning, work_rate, stamina, creativity]
+
+segundo_volante:
+  name: "Segundo Volante"
+  short: "SV"
+  positions: ["DM"]
+  duties: ["support", "attack"]
+  attributes:
+    key: [work_rate, stamina, tackling, off_the_ball, passing, long_shots]
+    important: [positioning, anticipation, finishing, first_touch, decisions, strength, teamwork]
+    useful: [marking, technique, composure, acceleration, balance]
+
+# ===================== CENTRAL MIDFIELD =====================
+
+central_midfielder:
+  name: "Central Midfielder"
+  short: "CM"
+  positions: ["MC"]
+  duties: ["defend", "support", "attack"]
+  attributes:
+    key: [passing, tackling, work_rate, decisions, teamwork]
+    important: [first_touch, technique, off_the_ball, stamina, composure, anticipation, positioning]
+    useful: [vision, dribbling, long_shots, marking, strength]
+
+box_to_box_midfielder:
+  name: "Box to Box Midfielder"
+  short: "BBM"
+  positions: ["MC"]
+  duties: ["support"]
+  attributes:
+    key: [stamina, work_rate, passing, tackling, off_the_ball, teamwork]
+    important: [first_touch, technique, decisions, positioning, long_shots, strength, determination, acceleration]
+    useful: [finishing, dribbling, composure, anticipation, balance, vision]
+
+mezzala:
+  name: "Mezzala"
+  short: "MEZ"
+  positions: ["MC"]
+  duties: ["support", "attack"]
+  attributes:
+    key: [dribbling, passing, off_the_ball, technique, decisions, vision]
+    important: [first_touch, flair, long_shots, acceleration, work_rate, stamina, composure]
+    useful: [finishing, agility, balance, teamwork, anticipation]
+  duty_modifiers:
+    attack:
+      promote: [off_the_ball, dribbling, finishing]
+
+roaming_playmaker:
+  name: "Roaming Playmaker"
+  short: "RPM"
+  positions: ["MC"]
+  duties: ["support"]
+  attributes:
+    key: [passing, technique, vision, decisions, first_touch, off_the_ball]
+    important: [dribbling, composure, flair, teamwork, work_rate, stamina, anticipation, balance]
+    useful: [tackling, positioning, long_shots, agility, acceleration]
+
+advanced_playmaker:
+  name: "Advanced Playmaker"
+  short: "AP"
+  positions: ["MC", "AMC", "AML", "AMR"]
+  duties: ["support", "attack"]
+  attributes:
+    key: [passing, vision, technique, first_touch, decisions, composure]
+    important: [dribbling, flair, off_the_ball, teamwork, anticipation, agility]
+    useful: [long_shots, finishing, work_rate, balance, acceleration]
+
+carrilero:
+  name: "Carrilero"
+  short: "CAR"
+  positions: ["MC"]
+  duties: ["support"]
+  attributes:
+    key: [passing, teamwork, work_rate, decisions, positioning, tackling]
+    important: [first_touch, technique, stamina, anticipation, concentration, composure]
+    useful: [marking, off_the_ball, vision, strength, balance]
+
+# ===================== ATTACKING MIDFIELD =====================
+
+attacking_midfielder:
+  name: "Attacking Midfielder"
+  short: "AM"
+  positions: ["AMC"]
+  duties: ["support", "attack"]
+  attributes:
+    key: [passing, technique, first_touch, decisions, off_the_ball, long_shots]
+    important: [dribbling, vision, flair, composure, anticipation, agility]
+    useful: [finishing, teamwork, work_rate, balance, acceleration]
+
+trequartista:
+  name: "Trequartista"
+  short: "TREQ"
+  positions: ["AMC", "AML", "AMR", "ST"]
+  duties: ["attack"]
+  attributes:
+    key: [technique, flair, off_the_ball, dribbling, first_touch, passing, vision]
+    important: [finishing, composure, decisions, agility, balance, long_shots, creativity]
+    useful: [acceleration, anticipation, teamwork, strength]
+
+enganche:
+  name: "Enganche"
+  short: "ENG"
+  positions: ["AMC"]
+  duties: ["support"]
+  attributes:
+    key: [passing, vision, technique, first_touch, decisions, flair, composure]
+    important: [dribbling, off_the_ball, anticipation, agility, balance, teamwork]
+    useful: [long_shots, finishing, creativity, strength]
+
+shadow_striker:
+  name: "Shadow Striker"
+  short: "SS"
+  positions: ["AMC"]
+  duties: ["attack"]
+  attributes:
+    key: [off_the_ball, finishing, first_touch, composure, dribbling, acceleration]
+    important: [technique, anticipation, decisions, passing, flair, agility, balance, pace]
+    useful: [long_shots, work_rate, stamina, strength, vision]
+
+# ===================== WIDE ATTACKERS =====================
+
+winger:
+  name: "Winger"
+  short: "W"
+  positions: ["ML", "MR", "AML", "AMR"]
+  duties: ["support", "attack"]
+  attributes:
+    key: [crossing, dribbling, technique, pace, acceleration, agility]
+    important: [first_touch, off_the_ball, flair, balance, work_rate, stamina]
+    useful: [passing, finishing, composure, decisions, anticipation]
+
+inverted_winger:
+  name: "Inverted Winger"
+  short: "IW"
+  positions: ["ML", "MR", "AML", "AMR"]
+  duties: ["support", "attack"]
+  attributes:
+    key: [dribbling, passing, technique, first_touch, off_the_ball, acceleration]
+    important: [crossing, flair, vision, agility, balance, pace, composure, long_shots]
+    useful: [finishing, decisions, work_rate, stamina, anticipation]
+
+inside_forward:
+  name: "Inside Forward"
+  short: "IF"
+  positions: ["AML", "AMR"]
+  duties: ["support", "attack"]
+  attributes:
+    key: [dribbling, finishing, first_touch, technique, off_the_ball, acceleration]
+    important: [composure, flair, agility, balance, pace, anticipation, long_shots]
+    useful: [passing, vision, decisions, work_rate, stamina, teamwork]
+  duty_modifiers:
+    attack:
+      promote: [finishing, off_the_ball, composure]
+
+raumdeuter:
+  name: "Raumdeuter"
+  short: "RMD"
+  positions: ["AML", "AMR"]
+  duties: ["attack"]
+  attributes:
+    key: [off_the_ball, finishing, anticipation, composure, first_touch, decisions]
+    important: [technique, concentration, balance, acceleration, agility, positioning]
+    useful: [dribbling, passing, flair, teamwork, pace]
+
+wide_playmaker:
+  name: "Wide Playmaker"
+  short: "WP"
+  positions: ["ML", "MR", "AML", "AMR"]
+  duties: ["support", "attack"]
+  attributes:
+    key: [passing, technique, vision, first_touch, dribbling, decisions]
+    important: [off_the_ball, composure, flair, teamwork, agility, balance]
+    useful: [crossing, work_rate, stamina, anticipation, acceleration]
+
+defensive_winger:
+  name: "Defensive Winger"
+  short: "DW"
+  positions: ["ML", "MR", "AML", "AMR"]
+  duties: ["defend", "support"]
+  attributes:
+    key: [work_rate, stamina, tackling, teamwork, crossing, dribbling]
+    important: [technique, first_touch, positioning, decisions, pace, acceleration, anticipation]
+    useful: [passing, off_the_ball, marking, concentration, agility]
+
+# ===================== STRIKERS =====================
+
+advanced_forward:
+  name: "Advanced Forward"
+  short: "AF"
+  positions: ["ST"]
+  duties: ["attack"]
+  attributes:
+    key: [finishing, off_the_ball, first_touch, composure, dribbling, acceleration]
+    important: [technique, anticipation, decisions, pace, agility, flair]
+    useful: [passing, balance, work_rate, stamina, strength, heading]
+
+deep_lying_forward:
+  name: "Deep Lying Forward"
+  short: "DLF"
+  positions: ["ST"]
+  duties: ["support", "attack"]
+  attributes:
+    key: [first_touch, passing, technique, composure, decisions, off_the_ball]
+    important: [finishing, vision, flair, teamwork, anticipation, balance, strength]
+    useful: [dribbling, heading, work_rate, agility, acceleration]
+  duty_modifiers:
+    attack:
+      promote: [finishing, off_the_ball]
+
+complete_forward:
+  name: "Complete Forward"
+  short: "CF"
+  positions: ["ST"]
+  duties: ["support", "attack"]
+  attributes:
+    key: [finishing, first_touch, technique, composure, off_the_ball, dribbling, passing]
+    important: [heading, vision, flair, decisions, anticipation, strength, acceleration, agility, balance]
+    useful: [work_rate, stamina, teamwork, jumping_reach, pace]
+
+target_forward:
+  name: "Target Forward"
+  short: "TF"
+  positions: ["ST"]
+  duties: ["support", "attack"]
+  attributes:
+    key: [heading, bravery, strength, jumping_reach, finishing, first_touch]
+    important: [off_the_ball, composure, balance, teamwork, anticipation, aggression]
+    useful: [technique, decisions, work_rate, determination, positioning]
+
+poacher:
+  name: "Poacher"
+  short: "PO"
+  positions: ["ST"]
+  duties: ["attack"]
+  attributes:
+    key: [finishing, off_the_ball, anticipation, composure, first_touch]
+    important: [technique, decisions, acceleration, pace, heading]
+    useful: [dribbling, flair, balance, agility, concentration]
+
+pressing_forward:
+  name: "Pressing Forward"
+  short: "PF"
+  positions: ["ST"]
+  duties: ["defend", "support", "attack"]
+  attributes:
+    key: [work_rate, stamina, aggression, off_the_ball, anticipation, bravery]
+    important: [finishing, first_touch, composure, teamwork, determination, acceleration, pace, strength]
+    useful: [technique, decisions, dribbling, concentration, agility]
+
+false_nine:
+  name: "False Nine"
+  short: "F9"
+  positions: ["ST"]
+  duties: ["support"]
+  attributes:
+    key: [passing, technique, first_touch, off_the_ball, vision, dribbling, composure]
+    important: [finishing, flair, decisions, anticipation, agility, balance, acceleration]
+    useful: [teamwork, work_rate, long_shots, pace, stamina]

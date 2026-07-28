@@ -1,0 +1,85 @@
+# ─────────────────────────────────────────────────────────────
+# FM Save Copilot — .gitignore
+# NEVER commit the API key or user save data.
+# ─────────────────────────────────────────────────────────────
+
+# User's API key — only config.example.yaml ships; config.yaml never does
+config/config.yaml
+
+# User's FM export files (their save data stays private)
+data_uploads/*.html
+data_uploads/*.xml
+
+# Generated reports (user output — not committed)
+output/*.html
+output/*.md
+
+# Context files updated per save (squad identity, transfer history)
+context/squad-identity.md
+context/transfer-history.md
+
+# Wizard saved answers (contains user-specific paths/values)
+wizard_answers.json
+
+# Python
+__pycache__/
+*.py[cod]
+*.pyo
+*.egg-info/
+dist/
+build/
+.eggs/
+*.egg
+venv/
+.venv/
+env/
+ENV/
+pip-wheel-metadata/
+
+# Testing
+.pytest_cache/
+.coverage
+htmlcov/
+
+# macOS
+.DS_Store
+.AppleDouble
+
+# Windows
+Thumbs.db
+ehthumbs.db
+Desktop.ini
+
+# Editor
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# Jupyter checkpoints
+.ipynb_checkpoints/
+
+# Claude Code session files
+.claude/
+
+# Internal staging / reference folders (not part of the public package)
+Github Repo/
+
+# Root-level prototype scripts (superseded by src/fm_copilot/)
+/analysis.py
+/parser.py
+/report.py
+/report_html.py
+/roles.py
+/scout.py
+
+# Old output files at repo root
+/report.html
+/report.md
+/squad-report.txt
+/squad-export.html
+
+# Context files written per-save (not templates — those ARE committed)
+/context/squad-identity.md
+/context/transfer-history.md

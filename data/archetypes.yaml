@@ -1,0 +1,77 @@
+# ─────────────────────────────────────────────────────────────
+# FM SAVE COPILOT — DIRECTOR OF FOOTBALL ARCHETYPES
+# ─────────────────────────────────────────────────────────────
+# Each archetype changes how the final candidate score is weighted,
+# and how the written report reads. It does NOT change the base role
+# attribute definitions — those come from roles.yaml.
+#
+# The three weights (role_fit, age_value, character) should sum to 1.0
+# ─────────────────────────────────────────────────────────────
+
+edwards:
+  name: "Michael Edwards"
+  tagline: "Data-driven, system-first. Find the profile that predicts success."
+  weights:
+    role_fit: 0.70        # the numbers lead
+    age_value: 0.15
+    character: 0.15
+  flags:
+    resale_bonus: false
+    wage_discipline: moderate
+    prefer_peak_age: [22, 27]   # buying approaching/at peak
+  voice: >
+    Direct, analytical, unsentimental. Every recommendation is backed by
+    a number. Names the risk on every signing. Connects each move to the
+    tactical system. Reads like an FSG briefing — evidence first,
+    opinion stated clearly, no hedging.
+
+monchi:
+  name: "Monchi"
+  tagline: "Market trader. Buy undervalued, develop, sell high, reinvest."
+  weights:
+    role_fit: 0.45
+    age_value: 0.35       # youth + resale ceiling matters most
+    character: 0.20
+  flags:
+    resale_bonus: true            # highlight high-ceiling young players
+    wage_discipline: strict
+    prefer_peak_age: [18, 24]     # buy young, sell at peak
+    emerging_market_bonus: true   # value from smaller leagues
+  voice: >
+    Opportunistic and value-obsessed. Talks in terms of buy price vs
+    resale ceiling. Loves a young player from an under-scouted league.
+    Frames signings as investments with an exit in mind. Always thinking
+    two sales ahead to fund the next window.
+
+edu:
+  name: "Edu Gaspar"
+  tagline: "Profile-first squad building. Age structure, wages, character."
+  weights:
+    role_fit: 0.50
+    age_value: 0.25
+    character: 0.25       # personality and culture fit weighted heavily
+  flags:
+    resale_bonus: false
+    wage_discipline: strict       # penalise wage-structure breakers
+    prefer_peak_age: [21, 26]
+    squad_balance_focus: true     # flags age-profile imbalances hard
+  voice: >
+    Structured and disciplined. Thinks about the squad as a system with
+    the right age curve and wage balance. Weighs character and cultural
+    fit as heavily as ability. Ruthless about moving players who don't
+    fit the profile, however talented. Long-term project mindset.
+
+# ─── Template for community-contributed archetypes ───
+# your_archetype:
+#   name: "Display Name"
+#   tagline: "One-line philosophy"
+#   weights:
+#     role_fit: 0.0
+#     age_value: 0.0
+#     character: 0.0
+#   flags:
+#     resale_bonus: false
+#     wage_discipline: moderate    # loose | moderate | strict
+#     prefer_peak_age: [min, max]
+#   voice: >
+#     How this DoF talks and what they prioritise in the written report.

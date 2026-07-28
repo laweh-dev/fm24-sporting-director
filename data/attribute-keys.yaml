@@ -1,0 +1,91 @@
+# ─────────────────────────────────────────────────────────────
+# FM SAVE COPILOT — ATTRIBUTE KEY MAPPING
+# ─────────────────────────────────────────────────────────────
+# Maps FM24 HTML export column headers → internal attribute names.
+# Internal names match the keys used in data/roles.yaml.
+#
+# Matching is case-insensitive in the parser. Add variants on new
+# lines if your FM version uses different abbreviations.
+#
+# To support a new FM version, add entries for any new/renamed columns.
+# ─────────────────────────────────────────────────────────────
+
+# Numeric attributes (values 1–20)
+attributes:
+  # ── Goalkeeping ──
+  "Ref":   reflexes
+  "Ov":    one_on_ones      # One vs One (some FM versions use "1v1")
+  "1v1":   one_on_ones
+  "Han":   handling
+  "Pos":   positioning
+  "Cnt":   concentration
+  "Aer":   aerial_reach
+  "Cmd":   command_of_area
+  "Com":   communication
+  "Kic":   kicking
+  "Thr":   throwing
+  "Fla":   flair
+  "Tro":   rushing_out
+  "Pun":   punching
+  "Ecc":   eccentricity
+
+  # ── Physical ──
+  "Pac":   pace
+  "Acc":   acceleration
+  "Sta":   stamina
+  "Str":   strength
+  "Agi":   agility
+  "Jum":   jumping_reach
+  "Bal":   balance
+
+  # ── Mental ──
+  "Agg":   aggression
+  "Bra":   bravery
+  "Det":   determination
+  "Wor":   work_rate
+  "Vis":   vision
+  "Ant":   anticipation
+  "Dec":   decisions
+  "Cmp":   composure
+  "Tea":   teamwork
+  "Ldr":   leadership
+  "Fre":   free_kicks       # Set-piece taking
+  "Cor":   corners
+  "Pen":   penalties
+
+  # ── Technical ──
+  "Pas":   passing
+  "Cro":   crossing
+  "Tec":   technique
+  "Hea":   heading
+  "Fin":   finishing
+  "Lon":   long_shots
+  "Fir":   first_touch
+  "Dri":   dribbling
+  "Mar":   marking
+  "Tck":   tackling
+  "OtB":   off_the_ball
+  "Otb":   off_the_ball     # alternate capitalisation
+  "L Th":  long_throws
+  "NF":    natural_fitness
+
+# Identity / non-numeric columns
+identity:
+  "Name":              name
+  "Age":               age
+  "Nat":               nationality
+  "Club":              club
+  "Personality":       personality
+  "Position":          positions_raw
+  "Pos":               positions_raw   # range export uses "Pos" for position string
+  "Height":            height_cm
+  "Weight":            weight_kg
+  "Contract Expires":  contract_expires
+  "Contract":          contract_expires
+  "Expires":           contract_expires
+  "Value":             wage            # confusingly FM labels wage "Value" in some views
+  "Wage":              wage
+  "Transfer Value":    transfer_value_raw
+  "Inf":               inf             # injury/status flag
+  "Rec":               rec             # recommendation flag (range exports)
+  "Media":             media           # media handling (squad exports)

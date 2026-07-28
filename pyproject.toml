@@ -1,0 +1,42 @@
+[project]
+name = "fm-save-copilot"
+version = "0.1.0"
+description = "Your Football Manager 2024 squad, analysed by a Director of Football."
+readme = "README.md"
+requires-python = ">=3.10"
+license = { text = "MIT" }
+authors = [{ name = "Michael Laweh" }]
+keywords = ["football-manager", "fm24", "football", "scouting", "analysis"]
+
+dependencies = [
+    "beautifulsoup4>=4.12.0",
+    "lxml>=5.0.0",
+    "pyyaml>=6.0",
+    "anthropic>=0.40.0",
+]
+
+[project.optional-dependencies]
+dev = ["pytest>=8.0.0"]
+
+[project.urls]
+Homepage = "https://github.com/laweh-dev/fm24-sporting-director"
+Issues = "https://github.com/laweh-dev/fm24-sporting-director/issues"
+
+# Lets users run `fm-copilot` as a command after install
+[project.scripts]
+fm-copilot = "fm_copilot.pipeline:main"
+
+[build-system]
+requires = ["setuptools>=68.0"]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools]
+package-dir = { "" = "src" }
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+# Bundle the data files (roles.yaml etc.) inside the package so they're
+# available after pip install, including in Colab
+[tool.setuptools.package-data]
+fm_copilot = ["../../data/*.yaml"]
