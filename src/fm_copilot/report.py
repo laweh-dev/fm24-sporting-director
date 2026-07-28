@@ -137,6 +137,24 @@ h1,h2,h3,.display,.pos-label,.badge,.section-eyebrow {
 .footer-brand{font-family:'Barlow Condensed';font-size:18px;font-weight:700;color:var(--gold);}
 .free-mode-banner{background:rgba(52,152,219,0.1);border:1px solid var(--blue);
   border-radius:8px;padding:16px 20px;margin-bottom:20px;color:var(--muted);font-size:13px;}
+/* Priority Alignment */
+.align-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(260px,1fr));gap:14px;margin-bottom:32px;}
+.align-card{background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:16px 20px;}
+.align-card.align-agreed{border-left:3px solid var(--green);}
+.align-card.align-dof{border-left:3px solid var(--amber);}
+.align-card.align-user{border-left:3px solid var(--blue);}
+.align-header{display:flex;align-items:center;gap:10px;margin-bottom:10px;flex-wrap:wrap;}
+.align-badge{font-family:'Barlow Condensed';font-size:11px;font-weight:700;letter-spacing:.08em;
+  text-transform:uppercase;padding:2px 8px;border-radius:3px;}
+.badge-agreed{background:rgba(46,204,113,.12);color:var(--green);}
+.badge-dof{background:rgba(243,156,18,.12);color:var(--amber);}
+.badge-user{background:rgba(52,152,219,.12);color:var(--blue);}
+.align-pos{font-family:'Barlow Condensed';font-size:32px;font-weight:800;color:var(--text);line-height:1;}
+.align-sev{font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:.06em;padding:2px 6px;border-radius:3px;margin-left:auto;}
+.sev-critical{background:rgba(231,76,60,.15);color:var(--red);}
+.sev-weak{background:rgba(243,156,18,.15);color:var(--amber);}
+.sev-thin{background:rgba(52,152,219,.1);color:var(--blue);}
+.align-text{font-size:13px;color:var(--muted);line-height:1.6;}
 @media print{body{background:white;color:black;}
   .card{border:1px solid #ccc;background:white;}.cover-title{color:#333;}}
 """
@@ -569,6 +587,27 @@ def _generate_narrative(report_data: dict, api_key: str, model: str) -> dict:
         if club_context else ""
     )
 
+    # Build the priority alignment block for the prompt
+    alignment = report_data.get("priority_alignment", {})
+    agreed_labels    = [p["label"] for p in alignment.get("agreed", [])]
+    user_only_labels = [p["label"] for p in alignment.get("user_only", [])]
+    dof_only_labels  = [p["label"] for p in alignment.get("dof_only", [])]
+    all_priority_labels = agreed_labels + user_only_labels + dof_only_labels
+
+    alignment_block = ""
+    if all_priority_labels:
+        alignment_block = f"""
+PRIORITY ALIGNMENT:
+Both flagged: {", ".join(agreed_labels) or "none"}
+Manager wants (data doesn't flag as a gap): {", ".join(user_only_labels) or "none"}
+Data flags (manager didn't prioritise): {", ".join(dof_only_labels) or "none"}
+
+For every position listed above, write one direct paragraph in "priority_reasoning":
+- Agreed: confirm it's the right call and why
+- Manager-only: state whether you agree or have reservations, and your reasoning
+- DoF-only: explain the gap and why the manager should make it a priority
+"""
+
     prompt = f"""You are the Director of Football analysing {club}'s squad in the style of '{dof}'.
 {context_block}
 SQUAD (top 20 by role score):
@@ -579,13 +618,16 @@ GAPS:
 
 SHORTLIST:
 {shortlist_summary}
-
-Write a Director of Football briefing to the manager. Refer to the club context above — reflect their formation, objectives, and budget in your analysis. Return ONLY a JSON object:
+{alignment_block}
+Write a Director of Football briefing to the manager. Reflect the formation, objectives, and budget in your analysis. Return ONLY a JSON object:
 {{
   "executive_summary": "3-4 paragraphs of honest squad verdict (paragraphs separated by \\n\\n)",
   "strategic_outlook_this_window": "2-3 sentences on immediate transfer actions",
   "strategic_outlook_next_window": "2-3 sentences on the next window",
-  "strategic_outlook_twelve_month": "2-3 sentences on 12-month squad trajectory"
+  "strategic_outlook_twelve_month": "2-3 sentences on 12-month squad trajectory",
+  "priority_reasoning": {{
+    "POSITION": "one paragraph — agreed: confirm; manager-only: agree or push back with reasons; dof-only: explain the concern"
+  }}
 }}
 
 Voice: direct, analytical, opinionated. Name specific players. Ground every claim in the data.
@@ -612,6 +654,56 @@ No markdown, no code fences — return only the JSON object."""
         return json.loads(raw)
     except (json.JSONDecodeError, ValueError):
         return {}
+
+
+# ── Priority Alignment section ────────────────────────────────────────────────
+
+def _render_priority_alignment(report_data: dict) -> str:
+    """Render the three-way priority alignment section (agreed / DoF-only / user-only)."""
+    alignment = report_data.get("priority_alignment", {})
+    reasoning = report_data.get("priority_reasoning", {})
+
+    agreed    = alignment.get("agreed", [])
+    dof_only  = alignment.get("dof_only", [])
+    user_only = alignment.get("user_only", [])
+
+    if not agreed and not dof_only and not user_only:
+        return ""
+
+    def _card(item: dict, kind: str) -> str:
+        label = item["label"]
+        sev   = item.get("severity", "")
+        # AI reasoning wins; fall back to data-derived text; then generic fallback
+        if kind == "user":
+            fallback = "The squad data doesn't flag this as a gap — confirm whether this is an upgrade or a necessary signing. The DoF's view is below."
+        else:
+            fallback = item.get("data_reason", "")
+        text = reasoning.get(label) or fallback
+        badge = {"agreed": "Both agree", "dof": "DoF flags", "user": "Your call"}[kind]
+        sev_html = (f'<span class="align-sev sev-{_esc(sev)}">{_esc(sev.title())}</span>' if sev else "")
+        return (
+            f'<div class="align-card align-{kind}">'
+            f'<div class="align-header">'
+            f'<span class="align-badge badge-{kind}">{badge}</span>'
+            f'<span class="align-pos">{_esc(label)}</span>'
+            f'{sev_html}'
+            f'</div>'
+            f'<p class="align-text">{_esc(text)}</p>'
+            f'</div>'
+        )
+
+    cards = (
+        [_card(i, "agreed") for i in agreed] +
+        [_card(i, "dof")    for i in dof_only] +
+        [_card(i, "user")   for i in user_only]
+    )
+
+    return (
+        '<div class="section-eyebrow">Priority Alignment</div>'
+        '<div class="section-heading">Where We Agree — and Where We Need to Talk</div>'
+        f'<div class="align-grid">{"".join(cards)}</div>'
+        '<hr class="divider">'
+    )
 
 
 # ── Main assembler ────────────────────────────────────────────────────────────
@@ -724,6 +816,7 @@ def generate_html(report_data: dict, roles_path=None) -> str:
 {_render_exec_summary(report_data)}
 <div class="section-eyebrow">Formation Analysis</div>
 {_render_depth_matrix(report_data)}
+{_render_priority_alignment(report_data)}
 <div class="section-eyebrow">Transfer Targets</div>
 <div class="section-heading">Priority Signings</div>
 {priority_html if priority_html else '<p style="color:var(--muted);">No priority positions configured. Run the setup wizard.</p><hr class="divider">'}
@@ -764,6 +857,8 @@ def generate_report(
             ]:
                 if narr_key in narr:
                     outlook[field] = narr[narr_key]
+            if "priority_reasoning" in narr:
+                report_data["priority_reasoning"] = narr["priority_reasoning"]
             report_data.setdefault("meta", {})["ai_narrative"] = True
             print("[report] AI narrative applied.", flush=True)
         else:

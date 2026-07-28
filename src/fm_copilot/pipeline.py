@@ -92,6 +92,27 @@ def _extract_budget_from_context(ctx: dict) -> int:
     return 15_000_000  # fallback £15m
 
 
+def _compare_priorities(
+    user_labels: list[str],
+    dof_recs: list[dict],
+) -> dict:
+    """
+    Diff user-stated priorities against DoF analysis-derived recommendations.
+
+    Returns three lists — agreed, user_only, dof_only — each containing
+    priority dicts suitable for rendering in the Priority Alignment section.
+    """
+    user_set = {l.upper() for l in user_labels}
+    dof_by_label = {r["label"].upper(): r for r in dof_recs}
+    dof_set = set(dof_by_label)
+
+    return {
+        "agreed":    [dof_by_label[l] for l in sorted(user_set & dof_set)],
+        "user_only": [{"label": l} for l in sorted(user_set - dof_set)],
+        "dof_only":  [dof_by_label[l] for l in sorted(dof_set - user_set)],
+    }
+
+
 def _build_priorities_config(priority_labels: list[str], cfg: dict) -> list[dict]:
     """
     Convert plain position labels (e.g. "RB", "LW") to priority dicts
@@ -408,8 +429,10 @@ def run_report(config: dict) -> str:
             ctx_sections.append(text)
     meta["club_context"] = "\n\n---\n\n".join(ctx_sections)
 
-    # Priority positions
+    # Priority positions — user-stated and DoF-derived
+    from .analysis import dof_recommended_priorities
     raw_prios   = _extract_priorities_from_context(ctx)
+    dof_recs    = dof_recommended_priorities(analysis.get("gaps", []), config.get("dof_mode", "edwards"))
     pri_configs = _build_priorities_config(raw_prios, config)
 
     # Annotate market players too (so shortlist scoring works)
@@ -419,6 +442,7 @@ def run_report(config: dict) -> str:
     report_data = _build_report_data(
         squad, market, analysis, config, meta, pri_configs, budget,
     )
+    report_data["priority_alignment"] = _compare_priorities(raw_prios, dof_recs)
 
     output_path = config.get("output_file", "output/report.html")
     print(f"[pipeline] Writing report to {output_path}...", flush=True)

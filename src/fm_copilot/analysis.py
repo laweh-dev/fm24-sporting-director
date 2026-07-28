@@ -154,6 +154,59 @@ def identify_gaps(depth: dict, system_positions=None) -> list[dict]:
     return gaps
 
 
+# ── DoF priority recommendation ──────────────────────────────────────────────
+
+# First-occurrence mapping from role_key → short position label
+_ROLE_TO_POS: dict[str, str] = {}
+for _pl, _, _rk in SYSTEM_POSITIONS:
+    if _rk not in _ROLE_TO_POS:
+        _ROLE_TO_POS[_rk] = _pl
+
+
+def dof_recommended_priorities(
+    gaps: list[dict],
+    dof_mode: str = "edwards",
+    top_n: int = 4,
+) -> list[dict]:
+    """
+    Derive the DoF's recommended priority positions from the gap analysis.
+
+    Returns up to top_n items, most urgent first:
+        [{label, role_key, severity, capable, strong, data_reason}]
+
+    dof_mode currently affects fallback text framing; selection is always
+    severity-first (critical → weak → thin) regardless of mode.
+    """
+    _ORDER = {"critical": 0, "weak": 1, "thin": 2}
+    sorted_gaps = sorted(gaps, key=lambda g: (_ORDER.get(g["severity"], 9), g.get("capable", 0)))
+
+    result: list[dict] = []
+    seen: set[str] = set()
+    for gap in sorted_gaps:
+        label = _ROLE_TO_POS.get(gap["role"], gap["role"])
+        if label in seen:
+            continue
+        seen.add(label)
+        c, s = gap.get("capable", 0), gap.get("strong", 0)
+        if gap["severity"] == "critical":
+            reason = f"No capable player at {label} — this is a structural hole in the squad."
+        elif gap["severity"] == "weak":
+            reason = f"{c} capable player(s) at {label} but no one strong enough to depend on."
+        else:
+            reason = f"Only {c} capable player at {label} — one injury and there's no cover."
+        result.append({
+            "label":       label,
+            "role_key":    gap["role"],
+            "severity":    gap["severity"],
+            "capable":     c,
+            "strong":      s,
+            "data_reason": reason,
+        })
+        if len(result) >= top_n:
+            break
+    return result
+
+
 # ── Age profile ───────────────────────────────────────────────────────────────
 
 def age_profile(squad: list[dict]) -> dict:
