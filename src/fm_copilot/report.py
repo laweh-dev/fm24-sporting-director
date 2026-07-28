@@ -598,59 +598,84 @@ def _generate_narrative(report_data: dict, api_key: str, model: str) -> dict:
                         f"fee {_fmt_fee(c.get('value_low',0), c.get('value_high',0))}\n")
         return out or "  None"
 
-    dof_rec_str = ", ".join(r["label"] for r in dof_recs) if dof_recs else "none"
+    # Pre-compute all string blocks to avoid f-string nesting pitfalls
+    _squad_block    = _fmt_squad(squad)
+    _gaps_block     = _fmt_gaps(gaps)
+    _shortlist_block = _fmt_shortlist(shortlist)
+    _dof_rec_str    = ", ".join(r["label"] for r in dof_recs) if dof_recs else "none"
+    _young_block    = "\n".join(
+        f"  {p['name']} ({p.get('age','?')}yo) — {p.get('best_role','')} [{p.get('best_role_score',0):.0f}]"
+        for p in young_talent
+    ) or "  None"
+    _decline_block  = "\n".join(
+        f"  {p['name']} ({p.get('age','?')}yo) — score {p.get('role_score',0):.0f},"
+        f" expires {p.get('contract_expires','?')}, wage £{p.get('wage',0):,}/w"
+        for p in decline_risks[:10]
+    ) or "  None"
+    _sell_block     = "\n".join(
+        f"  {p['name']} — {p.get('reason','')}"
+        for p in sell_cands[:10]
+    ) or "  None"
+    _wage_block     = "\n".join(
+        f"  {g}: £{s.get('total_weekly', 0):,}/w ({s.get('count', 0)} players)"
+        for g, s in fa.get("wage_by_group", {}).items()
+    ) or "  No data"
+    _tactical_line  = f"Tactical context: {tactical}" if tactical else ""
+    _read_line      = f"Manager squad read: {user_read}" if user_read else ""
 
-    prompt = f"""You are the Director of Football at {club} ({league}), writing a formal briefing for the manager.
-Your analytical style: {dof}
-{'Tactical context: ' + tactical if tactical else ''}
-{'Manager squad read: ' + user_read if user_read else ''}
-
-FULL CONTEXT:
-{club_context}
-
-SQUAD (top 25 by role fit):
-{_fmt_squad(squad)}
-
-GAPS IDENTIFIED BY DATA:
-{_fmt_gaps(gaps)}
-
-DATA-RECOMMENDED PRIORITY POSITIONS: {dof_rec_str}
-
-SIGNING SHORTLIST:
-{_fmt_shortlist(shortlist)}
-
-YOUNG TALENT (U23 above capable threshold):
-{chr(10).join(f"  {p['name']} ({p.get('age','?')}yo) — {p.get('best_role','')} [{p.get('best_role_score',0):.0f}]" for p in young_talent) or "  None"}
-
-DECLINE & CONTRACT RISKS:
-{chr(10).join(f"  {p['name']} ({p.get('age','?')}yo) — score {p.get('role_score',0):.0f}, expires {p.get('contract_expires','?')}, wage £{p.get('wage',0):,}/w" for p in decline_risks[:10]) or "  None"}
-
-SELL CANDIDATES:
-{chr(10).join(f"  {p['name']} — {p.get('reason','')}" for p in sell_cands[:10]) or "  None"}
-
-WAGE BY GROUP:
-{chr(10).join(f"  {g}: £{s.get('total_weekly',0):,}/w ({s.get('count',0)} players)" for g,s in fa.get('wage_by_group',{{}}).items()) or "  No data"}
-
-Write an honest, direct briefing. Name specific players. Ground every claim in the data above.
-Return ONLY valid JSON — no markdown, no code fences, no trailing commas:
-{{
-  "executive_summary": "3-4 paragraphs, paragraph breaks as \\n\\n. Honest overall verdict.",
-  "squad_unit_goalkeeper": "2-3 sentences on GK unit quality vs league standard.",
-  "squad_unit_defence": "2-3 sentences on defensive unit quality.",
-  "squad_unit_midfield": "2-3 sentences on midfield unit quality.",
-  "squad_unit_attack": "2-3 sentences on attacking unit quality.",
-  "priority_areas": "2-3 sentences introducing the priority signing areas and why.",
-  "priority_reasoning": {{
-    "POSITION_LABEL": "one paragraph — if data flags it: explain the gap. If manager flagged it but data doesn't: push back or confirm with reasoning."
-  }},
-  "young_talent": "2-3 sentences on the U23 players and their development path.",
-  "decline_risks": "2-3 sentences on aging or contract-risk players and the recommended action.",
-  "financial_audit": "2-3 sentences on wage structure, efficiency, and any imbalances.",
-  "sell_list": "2-3 sentences introducing the sell list and the logic behind it.",
-  "strategic_this_window": "2-3 sentences on immediate transfer window actions.",
-  "strategic_next_window": "2-3 sentences on next window priorities.",
-  "strategic_long_term": "2-3 sentences on 1-3 year squad trajectory."
-}}"""
+    prompt = (
+        f"You are the Director of Football at {club} ({league}), writing a formal briefing for the manager.\n"
+        f"Your analytical style: {dof}\n"
+        f"{_tactical_line}\n"
+        f"{_read_line}\n"
+        "\n"
+        "FULL CONTEXT:\n"
+        f"{club_context}\n"
+        "\n"
+        "SQUAD (top 25 by role fit):\n"
+        f"{_squad_block}\n"
+        "\n"
+        "GAPS IDENTIFIED BY DATA:\n"
+        f"{_gaps_block}\n"
+        "\n"
+        f"DATA-RECOMMENDED PRIORITY POSITIONS: {_dof_rec_str}\n"
+        "\n"
+        "SIGNING SHORTLIST:\n"
+        f"{_shortlist_block}\n"
+        "\n"
+        "YOUNG TALENT (U23 above capable threshold):\n"
+        f"{_young_block}\n"
+        "\n"
+        "DECLINE & CONTRACT RISKS:\n"
+        f"{_decline_block}\n"
+        "\n"
+        "SELL CANDIDATES:\n"
+        f"{_sell_block}\n"
+        "\n"
+        "WAGE BY GROUP:\n"
+        f"{_wage_block}\n"
+        "\n"
+        "Write an honest, direct briefing. Name specific players. Ground every claim in the data above.\n"
+        "Return ONLY valid JSON — no markdown, no code fences, no trailing commas:\n"
+        '{\n'
+        '  "executive_summary": "3-4 paragraphs, paragraph breaks as \\n\\n. Honest overall verdict.",\n'
+        '  "squad_unit_goalkeeper": "2-3 sentences on GK unit quality vs league standard.",\n'
+        '  "squad_unit_defence": "2-3 sentences on defensive unit quality.",\n'
+        '  "squad_unit_midfield": "2-3 sentences on midfield unit quality.",\n'
+        '  "squad_unit_attack": "2-3 sentences on attacking unit quality.",\n'
+        '  "priority_areas": "2-3 sentences introducing the priority signing areas and why.",\n'
+        '  "priority_reasoning": {\n'
+        '    "POSITION_LABEL": "one paragraph — if data flags it: explain the gap. If manager flagged it but data does not: push back or confirm with reasoning."\n'
+        '  },\n'
+        '  "young_talent": "2-3 sentences on the U23 players and their development path.",\n'
+        '  "decline_risks": "2-3 sentences on aging or contract-risk players and the recommended action.",\n'
+        '  "financial_audit": "2-3 sentences on wage structure, efficiency, and any imbalances.",\n'
+        '  "sell_list": "2-3 sentences introducing the sell list and the logic behind it.",\n'
+        '  "strategic_this_window": "2-3 sentences on immediate transfer window actions.",\n'
+        '  "strategic_next_window": "2-3 sentences on next window priorities.",\n'
+        '  "strategic_long_term": "2-3 sentences on 1-3 year squad trajectory."\n'
+        '}'
+    )
 
     client = anthropic.Anthropic(api_key=api_key)
     chunks = []
