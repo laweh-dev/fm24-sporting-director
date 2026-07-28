@@ -591,7 +591,6 @@ No markdown, no code fences — return only the JSON object."""
         with client.messages.stream(
             model=model,
             max_tokens=4000,
-            thinking={"type": "adaptive"},
             messages=[{"role": "user", "content": prompt}],
         ) as stream:
             for chunk in stream.text_stream:
