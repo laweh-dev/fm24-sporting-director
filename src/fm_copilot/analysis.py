@@ -66,6 +66,164 @@ SYSTEM_POSITIONS = [
 ]
 
 
+# ── Role display names ────────────────────────────────────────────────────────
+
+ROLE_DISPLAY_NAMES: dict[str, str] = {
+    "advanced_forward":        "Advanced Forward",
+    "advanced_playmaker":      "Advanced Playmaker",
+    "anchor":                  "Anchor",
+    "attacking_midfielder":    "Attacking Midfielder",
+    "ball_playing_defender":   "Ball-Playing Defender",
+    "ball_winning_midfielder": "Ball-Winning Midfielder",
+    "box_to_box_midfielder":   "Box-to-Box Midfielder",
+    "carrilero":               "Carrilero",
+    "central_defender":        "Central Defender",
+    "central_midfielder":      "Central Midfielder",
+    "complete_forward":        "Complete Forward",
+    "complete_wing_back":      "Complete Wing Back",
+    "deep_lying_forward":      "Deep-Lying Forward",
+    "deep_lying_playmaker":    "Deep-Lying Playmaker",
+    "defensive_midfielder":    "Defensive Midfielder",
+    "defensive_winger":        "Defensive Winger",
+    "enganche":                "Enganche",
+    "false_nine":              "False Nine",
+    "full_back":               "Full Back",
+    "goalkeeper":              "Goalkeeper",
+    "half_back":               "Half Back",
+    "inside_forward":          "Inside Forward",
+    "inverted_full_back":      "Inverted Full Back",
+    "inverted_wing_back":      "Inverted Wing Back",
+    "inverted_winger":         "Inverted Winger",
+    "mezzala":                 "Mezzala",
+    "no_nonsense_centre_back": "No-Nonsense CB",
+    "poacher":                 "Poacher",
+    "pressing_forward":        "Pressing Forward",
+    "raumdeuter":              "Raumdeuter",
+    "regista":                 "Regista",
+    "roaming_playmaker":       "Roaming Playmaker",
+    "segundo_volante":         "Segundo Volante",
+    "shadow_striker":          "Shadow Striker",
+    "sweeper_keeper":          "Sweeper Keeper",
+    "target_forward":          "Target Forward",
+    "trequartista":            "Trequartista",
+    "wide_centre_back":        "Wide Centre Back",
+    "wide_playmaker":          "Wide Playmaker",
+    "wing_back":               "Wing Back",
+    "winger":                  "Winger",
+}
+
+# ── Formation slot definitions ────────────────────────────────────────────────
+# Each value is a list of (pos_label, slot_type) tuples.
+# slot_type maps to the per-slot role choice in SLOT_DEFAULT_ROLES.
+
+SLOT_DEFAULT_ROLES: dict[str, str] = {
+    "gk":   "sweeper_keeper",
+    "fb":   "inverted_full_back",
+    "wb":   "complete_wing_back",
+    "cb":   "central_defender",
+    "dm":   "half_back",
+    "cm":   "box_to_box_midfielder",
+    "am":   "advanced_playmaker",
+    "wide": "inverted_winger",
+    "st":   "advanced_forward",
+}
+
+FORMATION_SLOTS: dict[str, list[tuple[str, str]]] = {
+    "4-2-3-1": [
+        ("GK",  "gk"),   ("RB",  "fb"),   ("CB",  "cb"),  ("CB",  "cb"),  ("LB",  "fb"),
+        ("DM",  "dm"),   ("DM",  "dm"),
+        ("RW",  "wide"), ("AM",  "am"),   ("LW",  "wide"), ("ST",  "st"),
+    ],
+    "4-3-3": [
+        ("GK",  "gk"),   ("RB",  "fb"),   ("CB",  "cb"),  ("CB",  "cb"),  ("LB",  "fb"),
+        ("CM",  "dm"),   ("CM",  "cm"),   ("CM",  "cm"),
+        ("RW",  "wide"), ("ST",  "st"),   ("LW",  "wide"),
+    ],
+    "4-4-2": [
+        ("GK",  "gk"),   ("RB",  "fb"),   ("CB",  "cb"),  ("CB",  "cb"),  ("LB",  "fb"),
+        ("RM",  "wide"), ("CM",  "dm"),   ("CM",  "cm"),  ("LM",  "wide"),
+        ("ST",  "st"),   ("ST",  "st"),
+    ],
+    "3-5-2": [
+        ("GK",  "gk"),   ("CB",  "cb"),   ("CB",  "cb"),  ("CB",  "cb"),
+        ("RWB", "wb"),   ("CM",  "dm"),   ("CM",  "cm"),  ("CM",  "dm"),  ("LWB", "wb"),
+        ("ST",  "st"),   ("ST",  "st"),
+    ],
+    "4-1-4-1": [
+        ("GK",  "gk"),   ("RB",  "fb"),   ("CB",  "cb"),  ("CB",  "cb"),  ("LB",  "fb"),
+        ("DM",  "dm"),
+        ("RM",  "wide"), ("CM",  "cm"),   ("CM",  "cm"),  ("LM",  "wide"),
+        ("ST",  "st"),
+    ],
+    "5-3-2": [
+        ("GK",  "gk"),   ("RWB", "wb"),   ("CB",  "cb"),  ("CB",  "cb"),  ("CB",  "cb"),  ("LWB", "wb"),
+        ("CM",  "dm"),   ("CM",  "cm"),   ("CM",  "cm"),
+        ("ST",  "st"),   ("ST",  "st"),
+    ],
+    "3-4-3": [
+        ("GK",  "gk"),   ("CB",  "cb"),   ("CB",  "cb"),  ("CB",  "cb"),
+        ("RWB", "wb"),   ("CM",  "cm"),   ("CM",  "dm"),  ("LWB", "wb"),
+        ("RW",  "wide"), ("ST",  "st"),   ("LW",  "wide"),
+    ],
+    "4-2-2-2": [
+        ("GK",  "gk"),   ("RB",  "fb"),   ("CB",  "cb"),  ("CB",  "cb"),  ("LB",  "fb"),
+        ("DM",  "dm"),   ("DM",  "dm"),
+        ("RAM", "am"),   ("LAM", "am"),
+        ("ST",  "st"),   ("ST",  "st"),
+    ],
+}
+
+
+def build_system_positions(
+    formation: str,
+    role_map: dict[str, str],
+    roles_path: str | Path | None = None,
+) -> tuple[list[tuple[str, str, str]], list[str]]:
+    """
+    Build a system_positions list from a formation name and per-slot role choices.
+
+    role_map keys: slot_type strings (gk, fb, wb, cb, dm, cm, am, wide, st)
+    role_map values: role_key strings from roles.yaml
+
+    Returns (system_positions, warnings).
+    Falls back to SYSTEM_POSITIONS with a warning if the formation is unknown.
+    """
+    warnings: list[str] = []
+
+    slots = FORMATION_SLOTS.get(formation)
+    if slots is None:
+        warnings.append(
+            f"Formation '{formation}' not recognised — using default 4-3-3. "
+            f"Supported: {', '.join(FORMATION_SLOTS)}"
+        )
+        return list(SYSTEM_POSITIONS), warnings
+
+    valid_roles: set[str] = set(ROLE_DISPLAY_NAMES.keys())
+    if roles_path is not None:
+        try:
+            loaded = load_roles(roles_path)
+            valid_roles = set(loaded.keys())
+        except Exception:
+            pass
+
+    system_positions: list[tuple[str, str, str]] = []
+    for pos_label, slot_type in slots:
+        chosen_key = role_map.get(slot_type, "")
+        if chosen_key and chosen_key in valid_roles:
+            role_key = chosen_key
+        else:
+            role_key = SLOT_DEFAULT_ROLES.get(slot_type, "central_defender")
+            if chosen_key:
+                warnings.append(
+                    f"Role '{chosen_key}' for slot '{slot_type}' not in roles.yaml — "
+                    f"using default '{role_key}'."
+                )
+        role_label = ROLE_DISPLAY_NAMES.get(role_key, role_key.replace("_", " ").title())
+        system_positions.append((pos_label, role_label, role_key))
+
+    return system_positions, warnings
+
+
 # ── Annotations ───────────────────────────────────────────────────────────────
 
 def annotate_players(

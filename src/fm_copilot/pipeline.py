@@ -35,6 +35,20 @@ def _parse_budget(budget_str: str) -> int:
         return 0
 
 
+def _load_tactic(context_dir: str) -> dict:
+    """Load context/tactic.yaml if it exists. Returns {} if missing or unparseable."""
+    import yaml
+    path = Path(context_dir) / "tactic.yaml"
+    if not path.exists():
+        return {}
+    try:
+        with open(path, encoding="utf-8") as f:
+            data = yaml.safe_load(f) or {}
+        return data
+    except Exception:
+        return {}
+
+
 def _load_context(context_dir: str) -> dict:
     """Read any markdown files in context/ into a dict {filename: text}."""
     ctx: dict[str, str] = {}
@@ -443,7 +457,8 @@ def run_report(config: dict) -> str:
         print("[pipeline] No market file — skipping shortlist.", flush=True)
 
     # Load context first — needed for league tier before analysis
-    ctx    = _load_context(config.get("context_dir", "context"))
+    context_dir = config.get("context_dir", "context")
+    ctx    = _load_context(context_dir)
     meta   = _extract_meta_from_context(ctx, config)
     budget = _extract_budget_from_context(ctx)
     fm_season_year = _extract_fm_season_year(meta.get("fm_season", ""))
@@ -453,9 +468,38 @@ def run_report(config: dict) -> str:
     league_tier = resolve_league_tier(meta.get("league", ""), tiers_data)
     print(f"[pipeline] League: {meta.get('league') or 'unknown'} — Tier {league_tier}", flush=True)
 
+    # Load formation / role choices from context/tactic.yaml
+    tactic = _load_tactic(context_dir)
+    system_positions = None
+    tactic_warnings: list[str] = []
+    if tactic:
+        from .analysis import build_system_positions
+        formation = tactic.get("formation", "")
+        role_map  = tactic.get("roles", {})
+        if formation:
+            system_positions, tactic_warnings = build_system_positions(
+                formation, role_map, config.get("roles_file")
+            )
+            print(f"[pipeline] Formation: {formation} ({len(system_positions)} slots)", flush=True)
+            for w in tactic_warnings:
+                print(f"[pipeline] ⚠  {w}", flush=True)
+        else:
+            print("[pipeline] tactic.yaml has no formation — using default system.", flush=True)
+    else:
+        print("[pipeline] No tactic.yaml found — using default 4-3-3 system.", flush=True)
+
+    # API key diagnostic
+    api_key = config.get("api_key", "")
+    if api_key:
+        masked = api_key[:10] + "..." + api_key[-4:] if len(api_key) > 14 else "***"
+        print(f"[pipeline] API key detected: {masked}", flush=True)
+    else:
+        print("[pipeline] No API key — running in free mode (no AI narrative).", flush=True)
+
     print("[pipeline] Running analysis...", flush=True)
     analysis = run_analysis(
         squad,
+        system_positions=system_positions,
         roles_path=config.get("roles_file"),
         league_tier=league_tier,
         fm_season_year=fm_season_year,

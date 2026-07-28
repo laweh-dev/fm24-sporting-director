@@ -617,7 +617,7 @@ def _generate_narrative(report_data: dict, api_key: str, model: str) -> dict:
         for p in sell_cands[:10]
     ) or "  None"
     _wage_block     = "\n".join(
-        f"  {g}: £{s.get('total_weekly', 0):,}/w ({s.get('count', 0)} players)"
+        f"  {g}: £{s.get('total', 0):,}/w ({s.get('count', 0)} players)"
         for g, s in fa.get("wage_by_group", {}).items()
     ) or "  No data"
     _tactical_line  = f"Tactical context: {tactical}" if tactical else ""
@@ -689,15 +689,16 @@ def _generate_narrative(report_data: dict, api_key: str, model: str) -> dict:
                 chunks.append(chunk)
     except Exception as e:
         print(f"[report] AI call failed: {e}")
-        return {}
+        return {"_error": str(e)}
 
     raw = "".join(chunks).strip()
     if raw.startswith("```"):
         raw = raw.split("\n", 1)[1].rsplit("```", 1)[0].strip()
     try:
         return json.loads(raw)
-    except (json.JSONDecodeError, ValueError):
-        return {}
+    except (json.JSONDecodeError, ValueError) as e:
+        print(f"[report] AI response was not valid JSON: {e}")
+        return {"_error": f"AI response parse error: {e}"}
 
 
 # ── Priority Alignment section ────────────────────────────────────────────────
@@ -941,7 +942,7 @@ def _render_financial_audit_section(data: dict) -> str:
     wbg = fa.get("wage_by_group", {})
     group_rows = ""
     for group, stats in wbg.items():
-        total = stats.get("total_weekly", 0)
+        total = stats.get("total", 0)
         count = stats.get("count", 0)
         avg   = total // count if count else 0
         group_rows += f"""
@@ -1035,6 +1036,20 @@ def _render_sell_candidates_section(data: dict) -> str:
 
 # ── Main assembler ────────────────────────────────────────────────────────────
 
+def _render_ai_error_banner(meta: dict) -> str:
+    ai_error = meta.get("ai_error", "")
+    if not ai_error:
+        return ""
+    return (
+        '<div style="background:#7f1d1d;border-left:4px solid #ef4444;padding:14px 20px;'
+        'margin:0 0 24px;border-radius:4px;font-size:13px;color:#fca5a5;line-height:1.6;">'
+        '<strong style="color:#fca5a5;">AI Narrative Failed</strong> — '
+        'This report was generated in free mode because the AI call did not complete. '
+        f'Error: {_esc(ai_error)}'
+        '</div>'
+    )
+
+
 def generate_html(report_data: dict, roles_path=None) -> str:
     """Assemble the complete v2 HTML report from report_data."""
     meta      = report_data.get("meta", {})
@@ -1065,6 +1080,7 @@ def generate_html(report_data: dict, roles_path=None) -> str:
   <style>{_CSS}</style>
 </head>
 <body>
+{_render_ai_error_banner(meta)}
 <!-- 1. Cover -->
 {_render_cover(report_data)}
 <!-- 2. Executive Summary -->
@@ -1109,18 +1125,22 @@ def generate_report(
     if api_key:
         print("[report] Generating AI narrative...", flush=True)
         narr = _generate_narrative(report_data, api_key, model)
-        if narr:
-            # Store all narrative sections under a single dict consumed by renderers
+        ai_error = narr.pop("_error", None) if narr else None
+        real_sections = {k: v for k, v in (narr or {}).items() if not k.startswith("_")}
+        if real_sections:
             narratives = report_data.setdefault("narratives", {})
-            for key, val in narr.items():
+            for key, val in real_sections.items():
                 if key != "priority_reasoning":
                     narratives[key] = val
-            if "priority_reasoning" in narr:
-                report_data["priority_reasoning"] = narr["priority_reasoning"]
+            if "priority_reasoning" in real_sections:
+                report_data["priority_reasoning"] = real_sections["priority_reasoning"]
             report_data.setdefault("meta", {})["ai_narrative"] = True
             print("[report] AI narrative applied.", flush=True)
         else:
-            print("[report] AI call returned nothing — free mode report.", flush=True)
+            msg = ai_error or "empty response"
+            print(f"[report] AI call returned nothing ({msg}) — free mode report.", flush=True)
+            if ai_error:
+                report_data.setdefault("meta", {})["ai_error"] = ai_error
     else:
         print("[report] No API key — generating free mode report.", flush=True)
 

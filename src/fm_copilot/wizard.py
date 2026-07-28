@@ -81,6 +81,26 @@ def _dof_profile_md(a: dict, archetypes: dict) -> str:
 
 # ── File writer ───────────────────────────────────────────────────────────────
 
+def _tactic_yaml(a: dict) -> str:
+    """Produce the tactic.yaml content from wizard answers."""
+    formation = a.get("formation", "4-2-3-1")
+    roles = {
+        "gk":   a.get("gk_role",   "sweeper_keeper"),
+        "fb":   a.get("fb_role",   "inverted_full_back"),
+        "wb":   a.get("wb_role",   "complete_wing_back"),
+        "cb":   a.get("cb_role",   "central_defender"),
+        "dm":   a.get("dm_role",   "half_back"),
+        "cm":   a.get("cm_role",   "box_to_box_midfielder"),
+        "am":   a.get("am_role",   "advanced_playmaker"),
+        "wide": a.get("wide_role", "inverted_winger"),
+        "st":   a.get("st_role",   "advanced_forward"),
+    }
+    lines = [f"formation: {formation!r}", "roles:"]
+    for slot, role_key in roles.items():
+        lines.append(f"  {slot}: {role_key}")
+    return "\n".join(lines) + "\n"
+
+
 def write_context_files(answers: dict, context_dir: str | Path | None = None) -> None:
     context_dir = Path(context_dir or _repo_path("context"))
     context_dir.mkdir(parents=True, exist_ok=True)
@@ -94,6 +114,7 @@ def write_context_files(answers: dict, context_dir: str | Path | None = None) ->
         "tactical-direction.md":  _tactical_direction_md(answers),
         "user-squad-read.md":     _user_squad_read_md(answers),
         "dof-profile.md":         _dof_profile_md(answers, archetypes),
+        "tactic.yaml":            _tactic_yaml(answers),
     }
 
     for filename, content in files.items():
@@ -108,12 +129,14 @@ def generate_context_from_form(values: dict, context_dir: str | Path | None = No
     """
     Non-interactive entry point used by the Colab notebook.
 
-    values dict keys:
+    values dict keys (all optional):
         club_name, league, competitions, fm_season,
         transfer_budget, wage_budget, board_objective,
-        tactical_direction (free text),
-        user_squad_read (free text),
-        dof_mode (edwards / monchi / edu)
+        tactical_direction, user_squad_read,
+        dof_mode (edwards / monchi / edu),
+        formation (e.g. "4-2-3-1"),
+        gk_role, fb_role, wb_role, cb_role, dm_role,
+        cm_role, am_role, wide_role, st_role  — role_key strings
     """
     answers = {
         "club_name":          values.get("club_name", "My Club"),
@@ -126,6 +149,17 @@ def generate_context_from_form(values: dict, context_dir: str | Path | None = No
         "tactical_direction": values.get("tactical_direction", ""),
         "user_squad_read":    values.get("user_squad_read", ""),
         "dof_mode":           values.get("dof_mode", "edwards"),
+        # Tactic
+        "formation":          values.get("formation", "4-2-3-1"),
+        "gk_role":            values.get("gk_role",   "sweeper_keeper"),
+        "fb_role":            values.get("fb_role",   "inverted_full_back"),
+        "wb_role":            values.get("wb_role",   "complete_wing_back"),
+        "cb_role":            values.get("cb_role",   "central_defender"),
+        "dm_role":            values.get("dm_role",   "half_back"),
+        "cm_role":            values.get("cm_role",   "box_to_box_midfielder"),
+        "am_role":            values.get("am_role",   "advanced_playmaker"),
+        "wide_role":          values.get("wide_role", "inverted_winger"),
+        "st_role":            values.get("st_role",   "advanced_forward"),
     }
     write_context_files(answers, context_dir)
 
