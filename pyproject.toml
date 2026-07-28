@@ -1,6 +1,6 @@
 [project]
 name = "fm-save-copilot"
-version = "0.1.0"
+version = "0.2.0"
 description = "Your Football Manager 2024 squad, analysed by a Director of Football."
 readme = "README.md"
 requires-python = ">=3.10"

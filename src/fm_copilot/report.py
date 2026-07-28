@@ -241,11 +241,11 @@ def _ideal_from_role(role_key: str, n: int = 8, roles_path: str | Path | None = 
 def _render_cover(data: dict) -> str:
     h = data.get("squad_health", {})
     health_items = [
+        ("Squad Size",    str(h.get("squad_size", "—"))),
         ("Squad Depth",   h.get("depth", "—")),
         ("Age Profile",   h.get("age_profile", "—")),
         ("Wages",         h.get("wage_structure", "—")),
         ("Priority Gaps", str(h.get("critical_gaps", 0))),
-        ("Budget Used",   h.get("budget_committed", "—")),
     ]
     health_html = "".join(f"""
         <div class="health-item">
@@ -271,33 +271,36 @@ def _render_cover(data: dict) -> str:
 
 
 def _render_exec_summary(data: dict) -> str:
-    summary = data.get("executive_summary", "")
-    if not summary:
-        analysis = data.get("analysis", {})
-        n_crit = analysis.get("n_critical", 0)
-        n_weak = analysis.get("n_weak", 0)
-        squad_size = analysis.get("squad_size", 0)
-        summary = (
-            f"Squad of {squad_size} players analysed. "
-            f"{n_crit} critical gap(s), {n_weak} weak position(s) identified. "
-            "Run in free mode — add an API key for the written narrative."
+    narr    = (data.get("narratives") or {}).get("executive_summary", "")
+    if not narr:
+        h = data.get("squad_health", {})
+        narr = (
+            f"Squad of {h.get('squad_size', '?')} players analysed. "
+            f"{h.get('critical_gaps', 0)} critical gap(s) identified. "
+            "Running in free mode — add an Anthropic API key to config.yaml to unlock the written narrative."
         )
 
-    paras = "".join(f"<p>{_esc(p)}</p>" for p in summary.split("\n\n") if p.strip())
+    paras = "".join(f"<p>{_esc(p)}</p>" for p in narr.split("\n\n") if p.strip())
 
-    stats = data.get("headline_stats", [])
+    h = data.get("squad_health", {})
+    inline_stats = [
+        (str(h.get("squad_size", "?")),    "Players"),
+        (str(h.get("critical_gaps", 0)),   "Critical Gaps"),
+        (str(h.get("prime", 0)),           "Prime Age (22–29)"),
+        (h.get("wage_structure", "—"),     "Weekly Wages"),
+    ]
     stats_html = "".join(f"""
         <div class="headline-stat">
-          <span class="headline-stat-value">{_esc(s['value'])}</span>
-          <div class="headline-stat-label">{_esc(s['label'])}</div>
-        </div>""" for s in stats)
+          <span class="headline-stat-value">{_esc(s[0])}</span>
+          <div class="headline-stat-label">{_esc(s[1])}</div>
+        </div>""" for s in inline_stats)
 
     free_banner = ""
     if not data.get("meta", {}).get("ai_narrative"):
         free_banner = """
 <div class="free-mode-banner">
   <strong>Free mode</strong> — all the analysis and scoring below, without the AI narrative.
-  Add an Anthropic API key to config.yaml to generate the written report (costs ~2p).
+  Add an Anthropic API key to config.yaml to generate the written report (costs ~$0.05).
 </div>"""
 
     return f"""
@@ -306,7 +309,7 @@ def _render_exec_summary(data: dict) -> str:
 {free_banner}
 <div class="card card--gold">
   <div class="exec-text">{paras}</div>
-  {"<div class='headline-stats'>" + stats_html + "</div>" if stats_html else ""}
+  <div class="headline-stats">{stats_html}</div>
 </div>
 <hr class="divider">"""
 
@@ -512,11 +515,11 @@ def _render_pipeline_table(players: list[dict], title: str, eyebrow: str, cols: 
 
 
 def _render_strategic_outlook(data: dict) -> str:
-    outlook = data.get("strategic_outlook", {})
+    narr = data.get("narratives") or {}
     windows = [
-        ("This Window",   outlook.get("this_window", "")),
-        ("Next Window",   outlook.get("next_window", "")),
-        ("12-Month View", outlook.get("twelve_month", "")),
+        ("This Window",   narr.get("strategic_this_window", "")),
+        ("Next Window",   narr.get("strategic_next_window", "")),
+        ("1–3 Years",     narr.get("strategic_long_term", "")),
     ]
     cards = "".join(f"""
       <div class="card">
@@ -545,100 +548,116 @@ def _render_footer(data: dict) -> str:
 </footer>"""
 
 
-# ── AI narrative generation ────────────────────────────────────────────────────
+# ── AI narrative generation (v2) ──────────────────────────────────────────────
 
 def _generate_narrative(report_data: dict, api_key: str, model: str) -> dict:
-    """Call the Anthropic API to generate narrative text for the report sections."""
+    """Single structured AI call returning JSON keyed by section slug."""
     try:
         import anthropic
     except ImportError:
         return {}
 
-    analysis = report_data.get("analysis", {})
-    squad    = analysis.get("squad", [])
-    gaps     = analysis.get("gaps", [])
-    shortlist = report_data.get("shortlist", {})
+    meta          = report_data.get("meta", {})
+    analysis      = report_data.get("analysis", {})
+    squad         = analysis.get("squad", [])
+    gaps          = analysis.get("gaps", [])
+    shortlist     = report_data.get("shortlist", {})
+    young_talent  = report_data.get("young_talent", [])
+    decline_risks = report_data.get("decline_risks", [])
+    sell_cands    = report_data.get("sell_candidates", [])
+    fa            = report_data.get("financial_audit", {})
+    dof_recs      = report_data.get("dof_recommended", [])
 
-    squad_summary = "\n".join(
-        f"  {p['name']} (age {p.get('age','?')}, best role: {p.get('best_role','?')} "
-        f"score {p.get('best_role_score',0):.0f}, wage £{p.get('wage',0):,}/w)"
-        for p in sorted(squad, key=lambda x: x.get("best_role_score", 0), reverse=True)[:20]
-    )
-    gap_summary = "\n".join(
-        f"  [{g['severity'].upper()}] {g['role']}: capable={g['capable']}, strong={g['strong']}"
-        for g in gaps
-    )
-    shortlist_summary = ""
-    for label, cands in shortlist.items():
-        shortlist_summary += f"\n{label}:\n"
-        for c in cands[:3]:
-            shortlist_summary += (
-                f"  {c['name']} (age {c.get('age','?')}, score {c.get('shortlist_score',0):.1f}, "
-                f"fee {_fmt_fee(c.get('value_low',0), c.get('value_high',0))})\n"
-            )
-
-    meta = report_data.get("meta", {})
-    club = meta.get("club_name", "the club")
-    dof  = meta.get("dof_mode", "edwards")
+    club         = meta.get("club_name", "the club")
+    league       = meta.get("league", "")
+    dof          = meta.get("dof_mode", "edwards")
     club_context = meta.get("club_context", "").strip()
+    user_read    = meta.get("user_squad_read", "").strip()
+    tactical     = meta.get("tactical_direction", "").strip()
 
-    context_block = (
-        f"\nCLUB CONTEXT (use this to shape your analysis — formation, objectives, budget):\n{club_context}\n"
-        if club_context else ""
-    )
+    def _fmt_squad(players, n=25):
+        return "\n".join(
+            f"  {p['name']} ({p.get('age','?')}yo) — best: {p.get('best_role','?')} "
+            f"[{p.get('best_role_score',0):.0f}], wage: £{p.get('wage',0):,}/w"
+            for p in sorted(players, key=lambda x: x.get("best_role_score", 0), reverse=True)[:n]
+        )
 
-    # Build the priority alignment block for the prompt
-    alignment = report_data.get("priority_alignment", {})
-    agreed_labels    = [p["label"] for p in alignment.get("agreed", [])]
-    user_only_labels = [p["label"] for p in alignment.get("user_only", [])]
-    dof_only_labels  = [p["label"] for p in alignment.get("dof_only", [])]
-    all_priority_labels = agreed_labels + user_only_labels + dof_only_labels
+    def _fmt_gaps(gaps_list):
+        return "\n".join(
+            f"  [{g['severity'].upper()}] {g['role']}: capable={g['capable']}, strong={g['strong']}"
+            for g in gaps_list
+        ) or "  None"
 
-    alignment_block = ""
-    if all_priority_labels:
-        alignment_block = f"""
-PRIORITY ALIGNMENT:
-Both flagged: {", ".join(agreed_labels) or "none"}
-Manager wants (data doesn't flag as a gap): {", ".join(user_only_labels) or "none"}
-Data flags (manager didn't prioritise): {", ".join(dof_only_labels) or "none"}
+    def _fmt_shortlist(sl):
+        out = ""
+        for label, cands in sl.items():
+            out += f"\n  {label}:\n"
+            for c in cands[:3]:
+                out += (f"    {c['name']} ({c.get('age','?')}yo) — "
+                        f"score {c.get('shortlist_score',0):.1f}, "
+                        f"fee {_fmt_fee(c.get('value_low',0), c.get('value_high',0))}\n")
+        return out or "  None"
 
-For every position listed above, write one direct paragraph in "priority_reasoning":
-- Agreed: confirm it's the right call and why
-- Manager-only: state whether you agree or have reservations, and your reasoning
-- DoF-only: explain the gap and why the manager should make it a priority
-"""
+    dof_rec_str = ", ".join(r["label"] for r in dof_recs) if dof_recs else "none"
 
-    prompt = f"""You are the Director of Football analysing {club}'s squad in the style of '{dof}'.
-{context_block}
-SQUAD (top 20 by role score):
-{squad_summary}
+    prompt = f"""You are the Director of Football at {club} ({league}), writing a formal briefing for the manager.
+Your analytical style: {dof}
+{'Tactical context: ' + tactical if tactical else ''}
+{'Manager squad read: ' + user_read if user_read else ''}
 
-GAPS:
-{gap_summary}
+FULL CONTEXT:
+{club_context}
 
-SHORTLIST:
-{shortlist_summary}
-{alignment_block}
-Write a Director of Football briefing to the manager. Reflect the formation, objectives, and budget in your analysis. Return ONLY a JSON object:
+SQUAD (top 25 by role fit):
+{_fmt_squad(squad)}
+
+GAPS IDENTIFIED BY DATA:
+{_fmt_gaps(gaps)}
+
+DATA-RECOMMENDED PRIORITY POSITIONS: {dof_rec_str}
+
+SIGNING SHORTLIST:
+{_fmt_shortlist(shortlist)}
+
+YOUNG TALENT (U23 above capable threshold):
+{chr(10).join(f"  {p['name']} ({p.get('age','?')}yo) — {p.get('best_role','')} [{p.get('best_role_score',0):.0f}]" for p in young_talent) or "  None"}
+
+DECLINE & CONTRACT RISKS:
+{chr(10).join(f"  {p['name']} ({p.get('age','?')}yo) — score {p.get('role_score',0):.0f}, expires {p.get('contract_expires','?')}, wage £{p.get('wage',0):,}/w" for p in decline_risks[:10]) or "  None"}
+
+SELL CANDIDATES:
+{chr(10).join(f"  {p['name']} — {p.get('reason','')}" for p in sell_cands[:10]) or "  None"}
+
+WAGE BY GROUP:
+{chr(10).join(f"  {g}: £{s.get('total_weekly',0):,}/w ({s.get('count',0)} players)" for g,s in fa.get('wage_by_group',{{}}).items()) or "  No data"}
+
+Write an honest, direct briefing. Name specific players. Ground every claim in the data above.
+Return ONLY valid JSON — no markdown, no code fences, no trailing commas:
 {{
-  "executive_summary": "3-4 paragraphs of honest squad verdict (paragraphs separated by \\n\\n)",
-  "strategic_outlook_this_window": "2-3 sentences on immediate transfer actions",
-  "strategic_outlook_next_window": "2-3 sentences on the next window",
-  "strategic_outlook_twelve_month": "2-3 sentences on 12-month squad trajectory",
+  "executive_summary": "3-4 paragraphs, paragraph breaks as \\n\\n. Honest overall verdict.",
+  "squad_unit_goalkeeper": "2-3 sentences on GK unit quality vs league standard.",
+  "squad_unit_defence": "2-3 sentences on defensive unit quality.",
+  "squad_unit_midfield": "2-3 sentences on midfield unit quality.",
+  "squad_unit_attack": "2-3 sentences on attacking unit quality.",
+  "priority_areas": "2-3 sentences introducing the priority signing areas and why.",
   "priority_reasoning": {{
-    "POSITION": "one paragraph — agreed: confirm; manager-only: agree or push back with reasons; dof-only: explain the concern"
-  }}
-}}
-
-Voice: direct, analytical, opinionated. Name specific players. Ground every claim in the data.
-No markdown, no code fences — return only the JSON object."""
+    "POSITION_LABEL": "one paragraph — if data flags it: explain the gap. If manager flagged it but data doesn't: push back or confirm with reasoning."
+  }},
+  "young_talent": "2-3 sentences on the U23 players and their development path.",
+  "decline_risks": "2-3 sentences on aging or contract-risk players and the recommended action.",
+  "financial_audit": "2-3 sentences on wage structure, efficiency, and any imbalances.",
+  "sell_list": "2-3 sentences introducing the sell list and the logic behind it.",
+  "strategic_this_window": "2-3 sentences on immediate transfer window actions.",
+  "strategic_next_window": "2-3 sentences on next window priorities.",
+  "strategic_long_term": "2-3 sentences on 1-3 year squad trajectory."
+}}"""
 
     client = anthropic.Anthropic(api_key=api_key)
     chunks = []
     try:
         with client.messages.stream(
             model=model,
-            max_tokens=4000,
+            max_tokens=6000,
             messages=[{"role": "user", "content": prompt}],
         ) as stream:
             for chunk in stream.text_stream:
@@ -706,98 +725,307 @@ def _render_priority_alignment(report_data: dict) -> str:
     )
 
 
+# ── New v2 section renderers ─────────────────────────────────────────────────
+
+def _unit_label(position: str) -> str:
+    p = position.upper()
+    if p in ("GK",):
+        return "Goalkeeper"
+    if any(p.startswith(x) for x in ("D ", "WB ", "D(", "WB(")):
+        return "Defence"
+    if any(p.startswith(x) for x in ("DM", "M ", "M(")):
+        return "Midfield"
+    if any(p.startswith(x) for x in ("AM", "ST", "F ")):
+        return "Attack"
+    if "GK" in p:
+        return "Goalkeeper"
+    if p in ("RB", "LB", "CB", "RWB", "LWB"):
+        return "Defence"
+    if p in ("DM", "CM", "RM", "LM"):
+        return "Midfield"
+    if p in ("RW", "LW", "ST", "CF", "SS", "AM"):
+        return "Attack"
+    return "Other"
+
+
+def _render_current_squad_units(data: dict) -> str:
+    matrix  = (data.get("analysis") or {}).get("depth_matrix", [])
+    narr    = (data.get("narratives") or {})
+
+    unit_order = ["Goalkeeper", "Defence", "Midfield", "Attack", "Other"]
+    units: dict[str, list] = {u: [] for u in unit_order}
+    for entry in matrix:
+        unit = _unit_label(entry.get("position", ""))
+        units.setdefault(unit, []).append(entry)
+
+    def _pc(p):
+        if not p:
+            return '<span style="color:var(--muted);">—</span>'
+        sc = p.get("score", 0)
+        return (
+            f'<span class="score-chip mono" style="color:{_score_color(sc)};'
+            f'background:rgba({_score_color(sc)[1:]},0.1);">{sc:.0f}</span> '
+            f'<span style="font-size:12px;">{_esc(p["name"])}</span> '
+            f'<span style="font-size:11px;color:var(--muted);">({p.get("age","?")})</span>'
+        )
+
+    blocks = ""
+    for unit in unit_order:
+        entries = units.get(unit, [])
+        if not entries:
+            continue
+        rows = ""
+        for e in entries:
+            rating   = e.get("depth_rating", "")
+            row_cls  = "critical-row" if rating == "Critical" else ("thin-row" if rating == "Thin" else "")
+            rows += f"""
+            <tr class="{row_cls}">
+              <td><span class="pos-label">{_esc(e['position'])}</span>
+                  <span class="role-name">{_esc(e.get('role_label',''))}</span></td>
+              <td>{_pc(e.get('starter'))}</td>
+              <td>{_pc(e.get('backup'))}</td>
+              <td><div class="depth-rating">{_depth_dot(rating)} {_esc(rating)}</div></td>
+            </tr>"""
+
+        unit_narr = narr.get(f"squad_unit_{unit.lower()}", "")
+        narr_html = (f'<p style="color:var(--muted);font-size:13px;line-height:1.7;margin:12px 0 0;">'
+                     f'{_esc(unit_narr)}</p>') if unit_narr else ""
+
+        blocks += f"""
+<h3 style="font-family:'Barlow Condensed';font-size:20px;font-weight:700;
+   color:var(--gold);margin:24px 0 10px;letter-spacing:.04em;">{_esc(unit)}</h3>
+<div class="card" style="padding:0;overflow:hidden;">
+  <table class="depth-table">
+    <thead><tr><th>Position</th><th>Starter</th><th>Backup</th><th>Depth</th></tr></thead>
+    <tbody>{rows}</tbody>
+  </table>
+  {narr_html}
+</div>"""
+
+    return f"""
+<div class="section-eyebrow">Squad Assessment</div>
+<div class="section-heading">Current Squad</div>
+{blocks}
+<hr class="divider">"""
+
+
+def _render_young_talent_section(data: dict) -> str:
+    players = data.get("young_talent", [])
+    narr    = (data.get("narratives") or {}).get("young_talent", "")
+    narr_html = (f'<p style="color:var(--muted);font-size:13px;line-height:1.7;margin-bottom:16px;">'
+                 f'{_esc(narr)}</p>') if narr else ""
+    rows = ""
+    for p in players:
+        sc = p.get("best_role_score", 0)
+        rows += f"""
+      <tr>
+        <td style="font-size:13px;font-weight:500;">{_esc(p['name'])}</td>
+        <td style="font-family:'JetBrains Mono';font-size:12px;">{p.get('age','—')}</td>
+        <td style="font-size:11px;color:var(--muted);">{_esc(p.get('positions_raw',''))}</td>
+        <td><span class="score-chip mono" style="color:{_score_color(sc)};
+            background:rgba({_score_color(sc)[1:]},0.1);">{sc:.0f}</span>
+            <span style="font-size:11px;color:var(--muted);margin-left:4px;">
+              {_esc(p.get('best_role',''))}</span></td>
+        <td style="font-family:'JetBrains Mono';font-size:12px;color:var(--muted);">
+          {_fmt_wage(p.get('wage',0))}</td>
+      </tr>"""
+    return f"""
+<div class="section-eyebrow">Academy &amp; Development</div>
+<div class="section-heading">Young Talent to Nurture</div>
+{narr_html}
+<div class="card" style="padding:0;overflow:hidden;">
+  <table class="data-table">
+    <thead><tr><th>Player</th><th>Age</th><th>Positions</th><th>Role Score</th><th>Wage</th></tr></thead>
+    <tbody>{rows or "<tr><td colspan='5' style='color:var(--muted);padding:16px;'>No U23 players above the capable threshold.</td></tr>"}</tbody>
+  </table>
+</div>
+<hr class="divider">"""
+
+
+def _render_decline_risks_section(data: dict) -> str:
+    players       = data.get("decline_risks", [])
+    contract_risks = data.get("contract_risks", [])
+    narr          = (data.get("narratives") or {}).get("decline_risks", "")
+    narr_html     = (f'<p style="color:var(--muted);font-size:13px;line-height:1.7;margin-bottom:16px;">'
+                     f'{_esc(narr)}</p>') if narr else ""
+
+    rows = ""
+    for p in players:
+        sc = p.get("role_score", 0)
+        rows += f"""
+      <tr>
+        <td style="font-size:13px;font-weight:500;">{_esc(p['name'])}</td>
+        <td style="font-family:'JetBrains Mono';font-size:12px;">{p.get('age','—')}</td>
+        <td><span class="score-chip mono" style="color:{_score_color(sc)};
+            background:rgba({_score_color(sc)[1:]},0.1);">{sc:.0f}</span>
+            <span style="font-size:11px;color:var(--muted);margin-left:4px;">
+              {_esc(p.get('best_role',''))}</span></td>
+        <td style="font-family:'JetBrains Mono';font-size:12px;color:var(--muted);">
+          {_esc(str(p.get('contract_expires','—')))}</td>
+        <td style="font-family:'JetBrains Mono';font-size:12px;color:var(--muted);">
+          {_fmt_wage(p.get('wage',0))}</td>
+      </tr>"""
+
+    contract_rows = ""
+    for r in contract_risks:
+        urgency = r.get("urgency", "risk")
+        color   = "var(--red)" if urgency == "urgent" else "var(--amber)"
+        contract_rows += f"""
+      <tr>
+        <td style="font-size:13px;">{_esc(r.get('name',''))}</td>
+        <td style="font-family:'JetBrains Mono';font-size:12px;">{r.get('age','—')}</td>
+        <td style="font-family:'JetBrains Mono';font-size:12px;color:{color};">
+          {_esc(r.get('months_remaining','?'))} mo</td>
+        <td style="font-family:'JetBrains Mono';font-size:12px;color:var(--muted);">
+          {_fmt_wage(r.get('wage',0))}</td>
+      </tr>"""
+
+    contract_section = ""
+    if contract_rows:
+        contract_section = f"""
+<h3 style="font-family:'Barlow Condensed';font-size:18px;font-weight:700;
+   margin:20px 0 10px;">Contract Risks (18-24 months)</h3>
+<div class="card" style="padding:0;overflow:hidden;">
+  <table class="data-table">
+    <thead><tr><th>Player</th><th>Age</th><th>Contract Left</th><th>Wage</th></tr></thead>
+    <tbody>{contract_rows}</tbody>
+  </table>
+</div>"""
+
+    return f"""
+<div class="section-eyebrow">Risk Register</div>
+<div class="section-heading">Decline &amp; Contract Risks</div>
+{narr_html}
+<div class="card" style="padding:0;overflow:hidden;">
+  <table class="data-table">
+    <thead><tr><th>Player</th><th>Age</th><th>Role Score</th><th>Expires</th><th>Wage</th></tr></thead>
+    <tbody>{rows or "<tr><td colspan='5' style='color:var(--muted);padding:16px;'>None identified.</td></tr>"}</tbody>
+  </table>
+</div>
+{contract_section}
+<hr class="divider">"""
+
+
+def _render_financial_audit_section(data: dict) -> str:
+    fa   = data.get("financial_audit", {})
+    narr = (data.get("narratives") or {}).get("financial_audit", "")
+    narr_html = (f'<p style="color:var(--muted);font-size:13px;line-height:1.7;margin-bottom:16px;">'
+                 f'{_esc(narr)}</p>') if narr else ""
+
+    # Wage by position group
+    wbg = fa.get("wage_by_group", {})
+    group_rows = ""
+    for group, stats in wbg.items():
+        total = stats.get("total_weekly", 0)
+        count = stats.get("count", 0)
+        avg   = total // count if count else 0
+        group_rows += f"""
+      <tr>
+        <td style="font-size:13px;font-weight:500;">{_esc(group.title())}</td>
+        <td style="font-family:'JetBrains Mono';font-size:12px;">{count}</td>
+        <td style="font-family:'JetBrains Mono';font-size:12px;">{_fmt_wage(total)}</td>
+        <td style="font-family:'JetBrains Mono';font-size:12px;color:var(--muted);">{_fmt_wage(avg)}</td>
+      </tr>"""
+
+    # Overpaid players
+    overpaid_rows = ""
+    for p in fa.get("overpaid", []):
+        sc = p.get("role_score", 0)
+        overpaid_rows += f"""
+      <tr>
+        <td style="font-size:13px;">{_esc(p['name'])}</td>
+        <td style="font-family:'JetBrains Mono';font-size:12px;color:var(--amber);">
+          {_fmt_wage(p.get('wage',0))}</td>
+        <td><span class="score-chip mono" style="color:{_score_color(sc)};
+            background:rgba({_score_color(sc)[1:]},0.1);">{sc:.0f}</span></td>
+        <td style="font-size:11px;color:var(--muted);">{_esc(p.get('reason',''))}</td>
+      </tr>"""
+
+    total_w = fa.get("total_weekly", 0)
+    total_html = (f'<p style="font-family:\'JetBrains Mono\';font-size:13px;color:var(--muted);'
+                  f'margin-bottom:16px;">Total squad wage bill: {_fmt_wage(total_w)} / week</p>') if total_w else ""
+
+    return f"""
+<div class="section-eyebrow">Financial Audit</div>
+<div class="section-heading">Wage &amp; Budget Review</div>
+{narr_html}
+{total_html}
+<div class="two-col">
+  <div>
+    <h3 style="font-family:'Barlow Condensed';font-size:18px;font-weight:700;margin-bottom:10px;">
+      Wage by Position Group</h3>
+    <div class="card" style="padding:0;overflow:hidden;">
+      <table class="data-table">
+        <thead><tr><th>Group</th><th>Players</th><th>Total/w</th><th>Avg/w</th></tr></thead>
+        <tbody>{group_rows or "<tr><td colspan='4' style='color:var(--muted);padding:14px;'>No wage data.</td></tr>"}</tbody>
+      </table>
+    </div>
+  </div>
+  <div>
+    <h3 style="font-family:'Barlow Condensed';font-size:18px;font-weight:700;margin-bottom:10px;">
+      Overpaid Relative to Contribution</h3>
+    <div class="card" style="padding:0;overflow:hidden;">
+      <table class="data-table">
+        <thead><tr><th>Player</th><th>Wage</th><th>Score</th><th>Reason</th></tr></thead>
+        <tbody>{overpaid_rows or "<tr><td colspan='4' style='color:var(--muted);padding:14px;'>None identified.</td></tr>"}</tbody>
+      </table>
+    </div>
+  </div>
+</div>
+<hr class="divider">"""
+
+
+def _render_sell_candidates_section(data: dict) -> str:
+    players = data.get("sell_candidates", [])
+    narr    = (data.get("narratives") or {}).get("sell_list", "")
+    narr_html = (f'<p style="color:var(--muted);font-size:13px;line-height:1.7;margin-bottom:16px;">'
+                 f'{_esc(narr)}</p>') if narr else ""
+    rows = ""
+    for p in players:
+        sc = p.get("role_score", 0)
+        rows += f"""
+      <tr>
+        <td style="font-size:13px;font-weight:500;">{_esc(p['name'])}</td>
+        <td style="font-family:'JetBrains Mono';font-size:12px;">{p.get('age','—')}</td>
+        <td><span class="score-chip mono" style="color:{_score_color(sc)};
+            background:rgba({_score_color(sc)[1:]},0.1);">{sc:.0f}</span></td>
+        <td style="font-family:'JetBrains Mono';font-size:12px;color:var(--gold);">
+          {_fmt_fee(0, p.get('value_high',0))}</td>
+        <td style="font-family:'JetBrains Mono';font-size:12px;color:var(--muted);">
+          {_fmt_wage(p.get('wage',0))}</td>
+        <td style="font-size:11px;color:var(--muted);">{_esc(p.get('reason',''))}</td>
+      </tr>"""
+    return f"""
+<div class="section-eyebrow">Outgoings</div>
+<div class="section-heading">Who Must Be Sold</div>
+{narr_html}
+<div class="card" style="padding:0;overflow:hidden;">
+  <table class="data-table">
+    <thead><tr><th>Player</th><th>Age</th><th>Score</th><th>Est. Value</th><th>Wage</th><th>Reason</th></tr></thead>
+    <tbody>{rows or "<tr><td colspan='6' style='color:var(--muted);padding:16px;'>No sell candidates identified.</td></tr>"}</tbody>
+  </table>
+</div>
+<hr class="divider">"""
+
+
 # ── Main assembler ────────────────────────────────────────────────────────────
 
 def generate_html(report_data: dict, roles_path=None) -> str:
-    """
-    Assemble the complete HTML report from report_data.
-
-    report_data structure (built by pipeline.py):
-        meta:      {club_name, window, dof_mode, generated, ai_narrative (bool)}
-        squad_health: {depth, age_profile, wage_structure, critical_gaps, budget_committed}
-        executive_summary: str
-        headline_stats: [{value, label}]
-        analysis: full analysis dict from analysis.py
-        priority_positions: [{position, role, role_key, priority, situation,
-                               current_players, top_candidates}]
-        shortlist: {label: [candidate]}
-        development_pipeline: [{name, age, role_score, best_role, recommendation}]
-        decline_risks: [{name, age, role_score, contract_expires, wage, recommendation}]
-        wage_audit: {overpaid: [...], sell_candidates: [...]}
-        strategic_outlook: {this_window, next_window, twelve_month}
-    """
-    meta = report_data.get("meta", {})
+    """Assemble the complete v2 HTML report from report_data."""
+    meta      = report_data.get("meta", {})
     chart_idx = 0
 
-    # ── Priority sections
+    # Section 5: Priority Signings — candidate cards with radar charts
     priority_html = ""
     for pos in report_data.get("priority_positions", []):
         section, chart_idx = _render_priority_section(pos, chart_idx, roles_path)
         priority_html += section
 
-    # ── Development pipeline table
-    pipeline_cols = [
-        ("Player",         "name",            "font-size:13px;font-weight:500;"),
-        ("Age",            "age",             "font-family:'JetBrains Mono';font-size:12px;"),
-        ("Role Score",     lambda p: f"{p.get('best_role_score',0):.0f} ({p.get('best_role','')})",
-                                              "font-family:'JetBrains Mono';font-size:12px;"),
-        ("Recommendation", "recommendation",  "font-size:12px;color:var(--muted);"),
-    ]
-    pipeline_html = _render_pipeline_table(
-        report_data.get("development_pipeline", []),
-        "Development Pipeline", "Future Assets", pipeline_cols,
-    )
-
-    # ── Decline risks table
-    decline_cols = [
-        ("Player",   "name",             "font-size:13px;font-weight:500;"),
-        ("Age",      "age",              "font-family:'JetBrains Mono';font-size:12px;"),
-        ("Score",    lambda p: f"{p.get('role_score',0):.0f}", "font-family:'JetBrains Mono';font-size:12px;"),
-        ("Contract", "contract_expires", "font-family:'JetBrains Mono';font-size:12px;color:var(--muted);"),
-        ("Wage",     lambda p: _fmt_wage(p.get("wage",0)), "font-family:'JetBrains Mono';font-size:12px;color:var(--muted);"),
-        ("Action",   "recommendation",   "font-size:12px;color:var(--muted);"),
-    ]
-    decline_html = _render_pipeline_table(
-        report_data.get("decline_risks", []),
-        "Decline & Contract Risks", "Risk Register", decline_cols,
-    )
-
-    # ── Wage audit
-    wa = report_data.get("wage_audit", {})
-    overpaid_rows = "".join(f"""
-      <tr><td style="font-size:13px;">{_esc(p['name'])}</td>
-        <td style="font-family:'JetBrains Mono';font-size:12px;color:var(--muted);">{_fmt_wage(p.get('wage',0))}</td>
-        <td><span class="score-chip mono" style="color:{_score_color(p.get('role_score',0))}">{p.get('role_score',0):.0f}</span></td>
-        <td style="font-size:11px;color:var(--muted);">{_esc(p.get('reason',''))}</td>
-      </tr>""" for p in wa.get("overpaid", []))
-    sell_rows = "".join(f"""
-      <tr><td style="font-size:13px;">{_esc(p['name'])}</td>
-        <td style="font-family:'JetBrains Mono';font-size:12px;color:var(--gold);">{_fmt_fee(0,p.get('value_high',0))}</td>
-        <td><span class="score-chip mono" style="color:{_score_color(p.get('role_score',0))}">{p.get('role_score',0):.0f}</span></td>
-        <td style="font-size:11px;color:var(--muted);">{_esc(p.get('reason',''))}</td>
-      </tr>""" for p in wa.get("sell_candidates", []))
-
-    def _wa_table(rows, empty_msg):
-        return (f'<table class="data-table"><thead><tr>'
-                f'<th>Player</th><th>Wage/Value</th><th>Score</th><th>Reason</th>'
-                f'</tr></thead><tbody>'
-                f'{rows or f"<tr><td colspan=4 style=color:var(--muted);padding:14px;>{empty_msg}</td></tr>"}'
-                f'</tbody></table>')
-
-    wage_html = f"""
-<div class="section-eyebrow">Financial Audit</div>
-<div class="section-heading">Wage &amp; Value Review</div>
-<div class="two-col">
-  <div>
-    <h3 style="font-family:'Barlow Condensed';font-size:18px;margin-bottom:12px;">Overpaid</h3>
-    <div class="card" style="padding:0;overflow:hidden;">{_wa_table(overpaid_rows, "None identified.")}</div>
-  </div>
-  <div>
-    <h3 style="font-family:'Barlow Condensed';font-size:18px;margin-bottom:12px;">Sell Candidates</h3>
-    <div class="card" style="padding:0;overflow:hidden;">{_wa_table(sell_rows, "None identified.")}</div>
-  </div>
-</div>
-<hr class="divider">"""
+    priority_narr = (report_data.get("narratives") or {}).get("priority_areas", "")
+    priority_narr_html = (
+        f'<p style="color:var(--muted);font-size:13px;line-height:1.7;margin-bottom:16px;">'
+        f'{_esc(priority_narr)}</p>'
+    ) if priority_narr else ""
 
     return f"""<!DOCTYPE html>
 <html lang="en">
@@ -812,17 +1040,30 @@ def generate_html(report_data: dict, roles_path=None) -> str:
   <style>{_CSS}</style>
 </head>
 <body>
+<!-- 1. Cover -->
 {_render_cover(report_data)}
+<!-- 2. Executive Summary -->
 {_render_exec_summary(report_data)}
-<div class="section-eyebrow">Formation Analysis</div>
+<!-- 3. Current Squad by unit -->
+{_render_current_squad_units(report_data)}
+<!-- 4. Squad Depth Matrix -->
 {_render_depth_matrix(report_data)}
+<!-- 5. Priority Areas (alignment) -->
 {_render_priority_alignment(report_data)}
+<!-- 6. Priority Signings -->
 <div class="section-eyebrow">Transfer Targets</div>
 <div class="section-heading">Priority Signings</div>
-{priority_html if priority_html else '<p style="color:var(--muted);">No priority positions configured. Run the setup wizard.</p><hr class="divider">'}
-{pipeline_html}
-{decline_html}
-{wage_html}
+{priority_narr_html}
+{priority_html if priority_html else '<p style="color:var(--muted);">No priority positions identified. Run the setup wizard or export a squad file.</p><hr class="divider">'}
+<!-- 7. Young Talent -->
+{_render_young_talent_section(report_data)}
+<!-- 8. Decline & Contract Risks -->
+{_render_decline_risks_section(report_data)}
+<!-- 9. Financial Audit -->
+{_render_financial_audit_section(report_data)}
+<!-- 10. Who Must Be Sold -->
+{_render_sell_candidates_section(report_data)}
+<!-- 11. Strategic Outlook -->
 {_render_strategic_outlook(report_data)}
 {_render_footer(report_data)}
 </body>
@@ -833,13 +1074,10 @@ def generate_report(
     report_data: dict,
     output_path: str | Path,
     api_key: str = "",
-    model: str = "claude-haiku-4-5",
+    model: str = "claude-sonnet-4-6",
     roles_path: str | Path | None = None,
 ) -> str:
-    """
-    Build the HTML report, optionally enriching with AI narrative, and write to output_path.
-    Returns the path to the written file.
-    """
+    """Build the HTML report, optionally enriching with AI narrative, and write to output_path."""
     output_path = Path(output_path)
     output_path.parent.mkdir(parents=True, exist_ok=True)
 
@@ -847,16 +1085,11 @@ def generate_report(
         print("[report] Generating AI narrative...", flush=True)
         narr = _generate_narrative(report_data, api_key, model)
         if narr:
-            if "executive_summary" in narr:
-                report_data["executive_summary"] = narr["executive_summary"]
-            outlook = report_data.setdefault("strategic_outlook", {})
-            for field, narr_key in [
-                ("this_window",  "strategic_outlook_this_window"),
-                ("next_window",  "strategic_outlook_next_window"),
-                ("twelve_month", "strategic_outlook_twelve_month"),
-            ]:
-                if narr_key in narr:
-                    outlook[field] = narr[narr_key]
+            # Store all narrative sections under a single dict consumed by renderers
+            narratives = report_data.setdefault("narratives", {})
+            for key, val in narr.items():
+                if key != "priority_reasoning":
+                    narratives[key] = val
             if "priority_reasoning" in narr:
                 report_data["priority_reasoning"] = narr["priority_reasoning"]
             report_data.setdefault("meta", {})["ai_narrative"] = True

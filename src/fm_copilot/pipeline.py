@@ -48,48 +48,78 @@ def _load_context(context_dir: str) -> dict:
     return ctx
 
 
+def _section_value(text: str, heading: str) -> str:
+    """Extract the text under a ## Heading from a markdown string."""
+    lines = text.splitlines()
+    capturing = False
+    result = []
+    for line in lines:
+        if line.strip().lower() == f"## {heading.lower()}":
+            capturing = True
+            continue
+        if capturing:
+            if line.startswith("## "):
+                break
+            result.append(line)
+    return "\n".join(result).strip()
+
+
 def _extract_meta_from_context(ctx: dict, cfg: dict) -> dict:
-    """Pull club name, budget, window label etc from context/club.md if present."""
-    meta: dict = {
-        "club_name": "My Club",
-        "window": "Transfer Window",
-        "dof_mode": cfg.get("dof_mode", "edwards"),
-        "generated": date.today().isoformat(),
-        "ai_narrative": False,
-    }
+    """Pull all club/context fields from context/ files."""
     club_text = ctx.get("club", "")
-    for line in club_text.splitlines():
-        line = line.strip()
-        if line.startswith("**Club:**"):
-            meta["club_name"] = line.replace("**Club:**", "").strip()
-        elif line.startswith("**League:**"):
-            meta["window"] = line.replace("**League:**", "").strip() + " — Transfer Window"
+
+    meta: dict = {
+        "club_name":          "My Club",
+        "league":             "",
+        "competitions":       "",
+        "fm_season":          "",
+        "dof_mode":           cfg.get("dof_mode", "edwards"),
+        "generated":          date.today().isoformat(),
+        "ai_narrative":       False,
+        "tactical_direction": ctx.get("tactical-direction", "").replace("# Tactical Direction", "").strip(),
+        "user_squad_read":    ctx.get("user-squad-read", "").replace("# Your Squad Assessment", "").strip(),
+    }
+
+    meta["club_name"]    = _section_value(club_text, "Club") or meta["club_name"]
+    meta["league"]       = _section_value(club_text, "League") or ""
+    meta["competitions"] = _section_value(club_text, "Cup Competitions") or ""
+    meta["fm_season"]    = _section_value(club_text, "FM Season") or ""
+
+    # Clean placeholder text
+    for key in ("club_name", "league", "competitions", "fm_season"):
+        v = meta[key]
+        if v.startswith("[") or "Not specified" in v or "Run the" in v:
+            meta[key] = ""
+
+    for key in ("tactical_direction", "user_squad_read"):
+        v = meta[key]
+        if "Run the Setup Wizard" in v or "Not specified" in v or v.startswith("["):
+            meta[key] = ""
+
     return meta
-
-
-def _extract_priorities_from_context(ctx: dict) -> list[str]:
-    """Parse window-priorities.md to extract priority position strings."""
-    text = ctx.get("window-priorities", "")
-    prios: list[str] = []
-    for line in text.splitlines():
-        line = line.strip()
-        if line.startswith("## Priority ") and not line.endswith("Priorities"):
-            pass  # next non-empty line has the position
-        elif line.startswith("**") and line.endswith("**"):
-            prios.append(line.strip("*").strip())
-    return prios
 
 
 def _extract_budget_from_context(ctx: dict) -> int:
     """Parse context/club.md transfer budget line → int."""
-    for line in ctx.get("club", "").splitlines():
-        if "Transfer budget" in line or "transfer budget" in line:
+    budget_section = _section_value(ctx.get("club", ""), "Budget")
+    for line in budget_section.splitlines():
+        if "transfer budget" in line.lower():
             for part in line.split(":"):
-                cleaned = part.strip().lstrip("£").replace(",", "")
-                b = _parse_budget(cleaned)
+                cleaned = part.strip().lstrip("£").replace(",", "").split("/")[0]
+                b = _parse_budget(cleaned.strip())
                 if b > 0:
                     return b
     return 15_000_000  # fallback £15m
+
+
+def _extract_fm_season_year(fm_season: str) -> int:
+    """Parse 'YYYY/YY' or 'YYYY' → start year integer."""
+    if not fm_season:
+        return date.today().year
+    try:
+        return int(fm_season.strip()[:4])
+    except (ValueError, TypeError):
+        return date.today().year
 
 
 def _compare_priorities(
@@ -172,15 +202,17 @@ def _build_report_data(
     priorities: list[dict],
     total_budget: int,
 ) -> dict:
-    """Assemble the full report_data dict consumed by report.generate_html()."""
+    """Assemble the full v2 report_data dict consumed by report.generate_html()."""
     from .analysis import (
-        STRONG_THRESHOLD, CAPABLE_THRESHOLD,
         build_shortlist, age_profile, key_players, versatile_players,
     )
     from .archetypes import candidate_score
 
-    dof  = cfg.get("dof_mode", "edwards")
-    gaps = analysis.get("gaps", [])
+    dof          = cfg.get("dof_mode", "edwards")
+    gaps         = analysis.get("gaps", [])
+    capable_t    = analysis.get("capable_threshold", 55)
+    strong_t     = analysis.get("strong_threshold", 65)
+    league_tier  = analysis.get("league_tier", 2)
 
     # ── Squad health summary ──────────────────────────────────────────────────
     age_groups = analysis.get("age_profile", age_profile(squad))
@@ -198,47 +230,42 @@ def _build_report_data(
         age_desc = "Ageing squad"
 
     squad_health = {
+        "squad_size":      len(squad),
         "depth":           "Critical" if n_crit >= 3 else ("Thin" if n_crit >= 1 else "Adequate"),
         "age_profile":     age_desc,
-        "wage_structure":  f"£{total_w:,}/w total" if total_w else "Unknown",
-        "critical_gaps":   str(n_crit),
-        "budget_committed": f"£{total_budget:,}" if total_budget else "Unknown",
+        "wage_structure":  f"£{total_w:,}/w" if total_w else "Unknown",
+        "critical_gaps":   n_crit,
+        "youth":           len(age_groups.get("youth", [])),
+        "prime":           n_prime,
+        "experienced":     len(age_groups.get("experienced", [])),
+        "veteran":         n_vet,
     }
 
-    # ── Headline stats ────────────────────────────────────────────────────────
-    headline_stats = [
-        {"value": str(len(squad)),  "label": "Players Analysed"},
-        {"value": str(n_crit),      "label": "Critical Gaps"},
-        {"value": str(n_prime),     "label": "Prime Age (22–26)"},
-        {"value": f"£{total_w:,}", "label": "Wage Bill/Week"},
-    ]
-
-    # ── Priority signings section ─────────────────────────────────────────────
+    # ── Shortlist ────────────────────────────────────────────────────────────
     squad_names = {p["name"] for p in squad}
-    shortlist   = {}
+    shortlist: dict = {}
     if market:
         shortlist = build_shortlist(
             market=market,
             priorities=priorities,
             squad_names=squad_names,
             total_budget=total_budget,
-            candidate_threshold=float(cfg.get("candidate_threshold", 60)),
+            candidate_threshold=float(capable_t),
             top_n=int(cfg.get("candidates_per_position", 3)),
         )
 
-    # Build the priority_positions structure for report.py
+    # ── Priority positions (for signing section) ─────────────────────────────
     priority_positions = []
     for pri in priorities:
         label     = pri["label"]
         role_keys = pri.get("role_keys", [])
 
-        # Current squad coverage for this position
         current_players = []
         for p in squad:
             if not role_keys:
                 continue
             best_score = max((p.get("role_scores", {}).get(rk, 0) for rk in role_keys), default=0)
-            if best_score >= CAPABLE_THRESHOLD:
+            if best_score >= capable_t:
                 current_players.append({
                     "name":       p["name"],
                     "age":        p.get("age", "?"),
@@ -247,136 +274,136 @@ def _build_report_data(
                 })
         current_players.sort(key=lambda x: x["role_score"], reverse=True)
 
-        # Determine priority level from gap analysis
         gap_severity = "medium"
         for g in gaps:
             if g["role"] in role_keys:
                 gap_severity = g["severity"]
                 break
-        priority_level = {
-            "critical": "CRITICAL",
-            "weak":     "HIGH",
-            "thin":     "HIGH",
-        }.get(gap_severity, "MEDIUM")
 
-        # Situation description
         n_capable = len(current_players)
-        n_strong  = sum(1 for p in current_players if p["role_score"] >= STRONG_THRESHOLD)
+        n_strong  = sum(1 for p in current_players if p["role_score"] >= strong_t)
         if n_capable == 0:
-            situation = f"No capable player in the squad for this role. Immediate signing required."
+            situation = "No capable player in the squad for this role — immediate signing required."
         elif n_strong == 0:
-            situation = f"{n_capable} capable option(s) in the squad but nobody above the strong threshold — quality upgrade needed."
+            situation = f"{n_capable} capable option(s) in the squad but no one above the quality threshold — upgrade needed."
         else:
-            situation = f"{n_strong} strong option(s) in the squad. Reinforcing depth or quality."
+            situation = f"{n_strong} strong option(s) in the squad — reinforcing depth or quality."
 
-        # Annotate candidates with archetype-adjusted scores
         top_cands = []
         for c in shortlist.get(label, []):
-            role_fit = c.get("shortlist_score", 0)
-            adj_score = candidate_score(
-                c, role_fit, dof, total_budget,
-                cfg.get("archetypes_file"),
-            )
+            role_fit  = c.get("shortlist_score", 0)
+            adj_score = candidate_score(c, role_fit, dof, total_budget, cfg.get("archetypes_file"))
             top_cands.append({
                 **c,
-                "role_score":   role_fit,
+                "role_score":      role_fit,
                 "shortlist_score": adj_score,
-                "value_low":    c.get("transfer_value_low", 0),
-                "value_high":   c.get("transfer_value_high", 0),
+                "value_low":       c.get("transfer_value_low", 0),
+                "value_high":      c.get("transfer_value_high", 0),
             })
 
-        # Role label for display (first role key → human-readable)
         role_label = role_keys[0].replace("_", " ").title() if role_keys else label
-
         priority_positions.append({
-            "position":       label,
-            "role":           role_label,
-            "role_key":       role_keys[0] if role_keys else "",
-            "priority":       priority_level,
-            "situation":      situation,
+            "position":        label,
+            "role":            role_label,
+            "role_key":        role_keys[0] if role_keys else "",
+            "severity":        gap_severity,
+            "situation":       situation,
             "current_players": current_players[:4],
-            "top_candidates": top_cands,
+            "top_candidates":  top_cands,
         })
 
-    # ── Development pipeline (young + improving) ──────────────────────────────
-    development_pipeline = []
+    # ── Young talent (U23 above capable threshold) ───────────────────────────
+    young_talent = []
     for p in sorted(squad, key=lambda x: x.get("best_role_score", 0), reverse=True):
-        if p.get("age", 30) <= 23 and p.get("best_role_score", 0) >= CAPABLE_THRESHOLD:
-            development_pipeline.append({
-                "name":          p["name"],
-                "age":           p.get("age", "?"),
-                "best_role":     p.get("best_role", "—"),
+        if p.get("age", 30) <= 23 and p.get("best_role_score", 0) >= capable_t:
+            young_talent.append({
+                "name":            p["name"],
+                "age":             p.get("age", "?"),
+                "positions_raw":   p.get("positions_raw", ""),
+                "best_role":       p.get("best_role", "—"),
                 "best_role_score": p.get("best_role_score", 0),
-                "recommendation": "Develop — protect from unnecessary sales.",
+                "wage":            p.get("wage", 0),
             })
 
-    # ── Decline / contract risks ──────────────────────────────────────────────
+    # ── Decline risks (age ≥ 30 and below capable threshold) ─────────────────
     decline_risks = []
     for p in squad:
-        age       = p.get("age", 0)
-        score     = p.get("best_role_score", 0)
-        contract  = str(p.get("contract_expires", ""))
-        wage      = p.get("wage", 0)
-        # Flag: veteran with falling score or expiring contract
-        if age >= 30 and score < CAPABLE_THRESHOLD:
-            reason = "Veteran below capable threshold"
-            if contract and contract <= str(date.today().year + 1):
-                reason += " — expiring contract"
+        age   = p.get("age", 0)
+        score = p.get("best_role_score", 0)
+        if age >= 30 and score < capable_t:
             decline_risks.append({
                 "name":             p["name"],
                 "age":              age,
                 "role_score":       score,
-                "contract_expires": contract,
-                "wage":             wage,
-                "recommendation":   "Assess sell / release in next window.",
+                "contract_expires": str(p.get("contract_expires", "")),
+                "wage":             p.get("wage", 0),
+                "best_role":        p.get("best_role", "—"),
             })
-
     decline_risks.sort(key=lambda x: x["role_score"])
 
-    # ── Wage audit ────────────────────────────────────────────────────────────
-    avg_score = (sum(p.get("best_role_score", 0) for p in squad) / len(squad)) if squad else 0
-    avg_wage  = (sum(p.get("wage", 0) for p in squad) / len(squad)) if squad else 0
-    overpaid  = []
-    sells     = []
+    # ── Contract risks (from analysis) ───────────────────────────────────────
+    contract_risks = analysis.get("contract_risks", [])
+
+    # ── Financial audit ───────────────────────────────────────────────────────
+    avg_wage = (sum(p.get("wage", 0) for p in squad) / len(squad)) if squad else 0
+    overpaid = []
     for p in squad:
         score = p.get("best_role_score", 0)
         wage  = p.get("wage", 0)
-        if score < CAPABLE_THRESHOLD and wage > avg_wage * 1.5:
+        if score < capable_t and wage > avg_wage * 1.5:
             overpaid.append({
                 "name":       p["name"],
                 "wage":       wage,
                 "role_score": score,
-                "reason":     "High wage, low role fit",
+                "reason":     "High wage relative to role contribution",
             })
-        if score < 40 and p.get("transfer_value_high", 0) > 500_000:
-            sells.append({
-                "name":        p["name"],
-                "role_score":  score,
-                "value_high":  p.get("transfer_value_high", 0),
-                "reason":      "Low role fit — sell while value exists",
+    wage_by_group = analysis.get("wage_by_group", {})
+
+    # ── Who must be sold ─────────────────────────────────────────────────────
+    sell_candidates = []
+    for p in squad:
+        score     = p.get("best_role_score", 0)
+        age       = p.get("age", 0)
+        val_high  = p.get("transfer_value_high", 0)
+        wage      = p.get("wage", 0)
+        reasons   = []
+        if score < capable_t:
+            reasons.append("below capable threshold for any system role")
+        if age >= 30 and score < capable_t:
+            reasons.append("approaching decline age")
+        if score < 45 and val_high > 500_000:
+            reasons.append(f"sell while value exists (est. £{val_high:,})")
+        if wage > avg_wage * 2 and score < capable_t:
+            reasons.append("wage disproportionate to contribution")
+        if reasons:
+            sell_candidates.append({
+                "name":       p["name"],
+                "age":        age,
+                "role_score": score,
+                "value_high": val_high,
+                "wage":       wage,
+                "reason":     "; ".join(reasons),
             })
-
-    wage_audit = {"overpaid": overpaid, "sell_candidates": sells}
-
-    # ── Strategic outlook (placeholder — AI will fill later) ─────────────────
-    strategic_outlook = {
-        "this_window":  "",
-        "next_window":  "",
-        "twelve_month": "",
-    }
+    sell_candidates.sort(key=lambda x: x["role_score"])
 
     return {
-        "meta":               meta,
-        "squad_health":       squad_health,
-        "headline_stats":     headline_stats,
-        "executive_summary":  "",  # AI fills; free mode leaves blank
-        "analysis":           analysis,
+        "meta":              meta,
+        "squad_health":      squad_health,
+        "analysis":          analysis,
         "priority_positions": priority_positions,
-        "shortlist":          shortlist,
-        "development_pipeline": development_pipeline,
-        "decline_risks":      decline_risks,
-        "wage_audit":         wage_audit,
-        "strategic_outlook":  strategic_outlook,
+        "shortlist":         shortlist,
+        "young_talent":      young_talent,
+        "decline_risks":     decline_risks,
+        "contract_risks":    contract_risks,
+        "financial_audit": {
+            "overpaid":      overpaid,
+            "wage_by_group": wage_by_group,
+            "total_weekly":  wages.get("total_weekly", 0),
+            "top_earners":   wages.get("top_earners", []),
+        },
+        "sell_candidates":   sell_candidates,
+        # AI fills these — free mode shows data tables only
+        "narratives":        {},
     }
 
 
@@ -388,7 +415,10 @@ def run_report(config: dict) -> str:
     Returns: path to the written HTML report.
     """
     from .parser import load_squad
-    from .analysis import run_analysis, annotate_players
+    from .analysis import (
+        run_analysis, annotate_players,
+        dof_recommended_priorities, load_league_tiers, resolve_league_tier,
+    )
     from .report import generate_report
 
     print(f"[pipeline] Loading squad from {config['squad_file']}...", flush=True)
@@ -412,37 +442,45 @@ def run_report(config: dict) -> str:
     else:
         print("[pipeline] No market file — skipping shortlist.", flush=True)
 
+    # Load context first — needed for league tier before analysis
+    ctx    = _load_context(config.get("context_dir", "context"))
+    meta   = _extract_meta_from_context(ctx, config)
+    budget = _extract_budget_from_context(ctx)
+    fm_season_year = _extract_fm_season_year(meta.get("fm_season", ""))
+
+    # Resolve league tier from the club's league name
+    tiers_data  = load_league_tiers()
+    league_tier = resolve_league_tier(meta.get("league", ""), tiers_data)
+    print(f"[pipeline] League: {meta.get('league') or 'unknown'} — Tier {league_tier}", flush=True)
+
     print("[pipeline] Running analysis...", flush=True)
-    analysis = run_analysis(squad, roles_path=config.get("roles_file"))
+    analysis = run_analysis(
+        squad,
+        roles_path=config.get("roles_file"),
+        league_tier=league_tier,
+        fm_season_year=fm_season_year,
+    )
 
-    # Context
-    ctx     = _load_context(config.get("context_dir", "context"))
-    meta    = _extract_meta_from_context(ctx, config)
-    budget  = _extract_budget_from_context(ctx)
-
-    # Pass full context text to the narrative so the AI knows the playing style,
-    # objectives, and budget — not just the club name
+    # Bundle all v2 context files for the AI prompt
     ctx_sections = []
-    for key in ("club", "playing-style", "window-priorities", "dof-profile"):
+    for key in ("club", "tactical-direction", "user-squad-read", "dof-profile"):
         text = ctx.get(key, "").strip()
         if text:
             ctx_sections.append(text)
     meta["club_context"] = "\n\n---\n\n".join(ctx_sections)
 
-    # Priority positions — user-stated and DoF-derived
-    from .analysis import dof_recommended_priorities
-    raw_prios   = _extract_priorities_from_context(ctx)
+    # DoF-recommended priorities (data-driven) drive the shortlist and signing section.
+    # The AI compares these against user_squad_read to produce the alignment commentary.
     dof_recs    = dof_recommended_priorities(analysis.get("gaps", []), config.get("dof_mode", "edwards"))
-    pri_configs = _build_priorities_config(raw_prios, config)
+    pri_configs = _build_priorities_config([r["label"] for r in dof_recs], config)
 
-    # Annotate market players too (so shortlist scoring works)
     if market:
         annotate_players(market, config.get("roles_file"))
 
     report_data = _build_report_data(
         squad, market, analysis, config, meta, pri_configs, budget,
     )
-    report_data["priority_alignment"] = _compare_priorities(raw_prios, dof_recs)
+    report_data["dof_recommended"] = dof_recs
 
     output_path = config.get("output_file", "output/report.html")
     print(f"[pipeline] Writing report to {output_path}...", flush=True)
@@ -450,7 +488,7 @@ def run_report(config: dict) -> str:
         report_data,
         output_path,
         api_key=config.get("api_key", ""),
-        model=config.get("model", "claude-haiku-4-5"),
+        model=config.get("model", "claude-sonnet-4-6"),
         roles_path=config.get("roles_file"),
     )
     print(f"[pipeline] Done! Report: {path}", flush=True)

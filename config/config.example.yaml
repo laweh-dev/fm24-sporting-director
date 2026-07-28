@@ -18,9 +18,9 @@ api_key: ""
 provider: anthropic
 
 # Which model to use.
-#   claude-haiku-4-5   → cheapest, fast, great for reports (~0.2p each) [DEFAULT]
-#   claude-sonnet-4-6  → higher quality, a bit pricier (~2p each)
-model: claude-haiku-4-5
+#   claude-sonnet-4-6  → recommended — best quality/cost balance for DoF reports
+#   claude-haiku-4-5   → faster and cheaper, shorter narratives
+model: claude-sonnet-4-6
 
 # Which Director of Football style shapes your report.
 #   edwards  → data-driven, system-first (recommended starting point)

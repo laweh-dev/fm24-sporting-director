@@ -1,0 +1,60 @@
+# FM Save Copilot — League Tier System
+# Maps league names → quality tier, which adjusts CAPABLE/STRONG score thresholds.
+#
+# Tier 1 (elite):    CAPABLE >= 60, STRONG >= 70
+# Tier 2 (strong):   CAPABLE >= 55, STRONG >= 65
+# Tier 3 (mid):      CAPABLE >= 50, STRONG >= 60
+# Tier 4 (lower):    CAPABLE >= 45, STRONG >= 55
+#
+# Matching is case-insensitive substring. First match wins.
+# Unrecognised leagues default to tier 2.
+
+thresholds:
+  1: { capable: 60, strong: 70 }
+  2: { capable: 55, strong: 65 }
+  3: { capable: 50, strong: 60 }
+  4: { capable: 45, strong: 55 }
+
+default_tier: 2
+
+leagues:
+  # ── Tier 1 — Elite ──────────────────────────────────────────
+  - { name: "Premier League",       tier: 1, aliases: ["EPL", "PL", "English Premier League"] }
+  - { name: "La Liga",              tier: 1, aliases: ["LaLiga", "Spanish Primera", "Primera Division"] }
+  - { name: "Bundesliga",           tier: 1, aliases: ["German Bundesliga", "1. Bundesliga"] }
+  - { name: "Serie A",              tier: 1, aliases: ["Italian Serie A", "Calcio"] }
+  - { name: "Ligue 1",              tier: 1, aliases: ["French Ligue 1", "Ligue1"] }
+
+  # ── Tier 2 — Strong ─────────────────────────────────────────
+  - { name: "Championship",         tier: 2, aliases: ["EFL Championship", "English Championship"] }
+  - { name: "Eredivisie",           tier: 2, aliases: ["Dutch Eredivisie", "Netherlands"] }
+  - { name: "Primeira Liga",        tier: 2, aliases: ["Liga NOS", "Portuguese Liga", "Liga Portugal"] }
+  - { name: "Scottish Premiership", tier: 2, aliases: ["SPL", "SPFL Premiership"] }
+  - { name: "Belgian Pro League",   tier: 2, aliases: ["Jupiler Pro League"] }
+  - { name: "Süper Lig",            tier: 2, aliases: ["Super Lig", "Turkish Super Lig"] }
+  - { name: "Serie B",              tier: 2, aliases: ["Italian Serie B"] }
+  - { name: "La Liga 2",            tier: 2, aliases: ["Segunda", "LaLiga2", "Segunda Division"] }
+  - { name: "2. Bundesliga",        tier: 2, aliases: ["German 2nd Division"] }
+  - { name: "Ligue 2",              tier: 2, aliases: ["French Ligue 2"] }
+  - { name: "MLS",                  tier: 2, aliases: ["Major League Soccer", "US Soccer"] }
+  - { name: "Saudi Pro League",     tier: 2, aliases: ["Saudi League", "SPL Saudi"] }
+  - { name: "Austrian Bundesliga",  tier: 2, aliases: ["Austrian Football Bundesliga"] }
+  - { name: "Swiss Super League",   tier: 2, aliases: ["Switzerland Super League"] }
+  - { name: "Greek Super League",   tier: 2, aliases: ["Greece Super League"] }
+
+  # ── Tier 3 — Mid ─────────────────────────────────────────────
+  - { name: "League One",           tier: 3, aliases: ["EFL League One", "English League One"] }
+  - { name: "Scottish Championship", tier: 3, aliases: ["SPFL Championship"] }
+  - { name: "League of Ireland",    tier: 3, aliases: ["LOI Premier Division"] }
+  - { name: "Brasileirao",          tier: 3, aliases: ["Brazilian Serie A", "Brazil Serie A"] }
+  - { name: "Argentine Primera",    tier: 3, aliases: ["Argentina Primera Division"] }
+  - { name: "Czech First League",   tier: 3, aliases: ["Czech Liga"] }
+  - { name: "Polish Ekstraklasa",   tier: 3, aliases: ["Ekstraklasa"] }
+  - { name: "Romanian Liga 1",      tier: 3, aliases: ["Romanian Liga"] }
+  - { name: "Russian Premier League", tier: 3, aliases: ["RPL", "Russian League"] }
+
+  # ── Tier 4 — Lower ───────────────────────────────────────────
+  - { name: "League Two",           tier: 4, aliases: ["EFL League Two", "English League Two"] }
+  - { name: "National League",      tier: 4, aliases: ["English National League", "Vanarama"] }
+  - { name: "Scottish League One",  tier: 4, aliases: ["SPFL League One"] }
+  - { name: "Scottish League Two",  tier: 4, aliases: ["SPFL League Two"] }
