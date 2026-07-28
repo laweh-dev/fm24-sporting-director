@@ -232,19 +232,49 @@ def load_squad(
     with open(filepath, encoding="utf-8", errors="replace") as f:
         html = f.read()
 
-    soup = BeautifulSoup(html, "html.parser")
-    rows = soup.find_all("tr")
+    # lxml handles FM24's non-standard HTML better than the built-in parser
+    for _parser in ("lxml", "html.parser"):
+        try:
+            soup = BeautifulSoup(html, _parser)
+            break
+        except Exception:
+            continue
+
+    # FM24 exports can have multiple tables (title rows, summary tables).
+    # Find the table whose first row contains "Name" or "Age" as column headers.
+    rows = None
+    for table in soup.find_all("table"):
+        candidate = table.find_all("tr")
+        if not candidate:
+            continue
+        first = [c.get_text(strip=True).lower() for c in candidate[0].find_all(["th", "td"])]
+        if "name" in first or "age" in first:
+            rows = candidate
+            break
+    if rows is None:
+        rows = soup.find_all("tr")  # fallback: search entire document
+
     if not rows:
         return []
 
-    # Read header row to build column map
-    header_cells = [c.get_text(strip=True) for c in rows[0].find_all(["th", "td"])]
+    # The real header row might not be rows[0] (some FM versions prepend a title row).
+    header_idx = 0
+    header_cells = []
+    for i, row in enumerate(rows):
+        cells = [c.get_text(strip=True) for c in row.find_all(["th", "td"])]
+        if any(c.lower() in ("name", "age") for c in cells):
+            header_idx = i
+            header_cells = cells
+            break
+    if not header_cells:
+        header_cells = [c.get_text(strip=True) for c in rows[0].find_all(["th", "td"])]
+
     is_range = bool(header_cells and header_cells[0] == "Rec")
 
     col_map = _build_col_map(header_cells, key_map)
 
     players = []
-    for row in rows[1:]:
+    for row in rows[header_idx + 1:]:
         cells = [td.get_text(strip=True) for td in row.find_all("td")]
         if not cells:
             continue

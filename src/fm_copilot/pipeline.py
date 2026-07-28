@@ -373,6 +373,13 @@ def run_report(config: dict) -> str:
     print(f"[pipeline] Loading squad from {config['squad_file']}...", flush=True)
     squad = load_squad(config["squad_file"], config.get("attribute_keys_file"))
     print(f"[pipeline] Parsed {len(squad)} players.", flush=True)
+    if not squad:
+        raise ValueError(
+            "No players were parsed from the squad file. "
+            "Make sure you exported from FM24 using the HTML export format "
+            "(File → Save as Webpage) from the Squad screen with the correct view loaded. "
+            "See VIEW-SETUP.md for instructions."
+        )
 
     # Load market file if it exists
     market_file = config.get("market_file", "")
