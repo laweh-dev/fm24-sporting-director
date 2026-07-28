@@ -357,22 +357,39 @@ for _pl, _, _rk in SYSTEM_POSITIONS:
         _ROLE_TO_POS[_rk] = _pl
 
 
+def _star_label(stars: int | None) -> str:
+    """Return a star string like '★★★' for display, or '' if unrated."""
+    if stars is None:
+        return ""
+    return "★" * stars
+
+
 def dof_recommended_priorities(
     gaps: list[dict],
     dof_mode: str = "edwards",
     top_n: int = 4,
+    squad: list[dict] | None = None,
 ) -> list[dict]:
     """
     Derive the DoF's recommended priority positions from the gap analysis.
 
     Returns up to top_n items, most urgent first:
-        [{label, role_key, severity, capable, strong, data_reason}]
+        [{label, role_key, severity, capable, strong, data_reason, high_potential_prospect}]
 
-    dof_mode currently affects fallback text framing; selection is always
-    severity-first (critical → weak → thin) regardless of mode.
+    When squad is provided, also surfaces any high-potential young player (4-5 stars)
+    whose best role matches a gap position — flagged as a development accelerant.
     """
     _ORDER = {"critical": 0, "weak": 1, "thin": 2}
     sorted_gaps = sorted(gaps, key=lambda g: (_ORDER.get(g["severity"], 9), g.get("capable", 0)))
+
+    # Index high-potential young players by their best role
+    _high_pot: dict[str, list[str]] = {}  # role_key → [player names]
+    for p in (squad or []):
+        stars = p.get("potential_stars")
+        if stars and stars >= 4 and p.get("age", 99) <= 23:
+            role = p.get("best_role", "")
+            if role:
+                _high_pot.setdefault(role, []).append(p["name"])
 
     result: list[dict] = []
     seen: set[str] = set()
@@ -388,13 +405,15 @@ def dof_recommended_priorities(
             reason = f"{c} capable player(s) at {label} but no one strong enough to depend on."
         else:
             reason = f"Only {c} capable player at {label} — one injury and there's no cover."
+        prospects = _high_pot.get(gap["role"], [])
         result.append({
-            "label":       label,
-            "role_key":    gap["role"],
-            "severity":    gap["severity"],
-            "capable":     c,
-            "strong":      s,
-            "data_reason": reason,
+            "label":                    label,
+            "role_key":                 gap["role"],
+            "severity":                 gap["severity"],
+            "capable":                  c,
+            "strong":                   s,
+            "data_reason":              reason,
+            "high_potential_prospects": prospects,
         })
         if len(result) >= top_n:
             break

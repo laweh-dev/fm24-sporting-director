@@ -602,9 +602,22 @@ def _generate_narrative(report_data: dict, api_key: str, model: str) -> dict:
     _squad_block    = _fmt_squad(squad)
     _gaps_block     = _fmt_gaps(gaps)
     _shortlist_block = _fmt_shortlist(shortlist)
-    _dof_rec_str    = ", ".join(r["label"] for r in dof_recs) if dof_recs else "none"
+    def _fmt_rec(r):
+        txt = r["label"]
+        prospects = r.get("high_potential_prospects", [])
+        if prospects:
+            txt += f" [high-pot prospect: {', '.join(prospects)}]"
+        return txt
+    _dof_rec_str    = ", ".join(_fmt_rec(r) for r in dof_recs) if dof_recs else "none"
+    def _fmt_stars(stars):
+        if stars is None:
+            return "unrated"
+        return f"{'★' * stars}{'☆' * (5 - stars)} ({stars}/5)"
+
     _young_block    = "\n".join(
         f"  {p['name']} ({p.get('age','?')}yo) — {p.get('best_role','')} [{p.get('best_role_score',0):.0f}]"
+        f", AM potential: {_fmt_stars(p.get('potential_stars'))}"
+        f"{', personality: ' + p.get('personality') if p.get('personality') else ''}"
         for p in young_talent
     ) or "  None"
     _decline_block  = "\n".join(
@@ -835,34 +848,65 @@ def _render_current_squad_units(data: dict) -> str:
 <hr class="divider">"""
 
 
+def _render_star_pips(stars: int | None) -> str:
+    """Render AM potential stars as coloured pip elements."""
+    if not stars:
+        return '<span style="color:var(--muted);font-size:11px;">unrated</span>'
+    filled = "★" * stars
+    empty  = "☆" * (5 - stars)
+    color  = ("#f59e0b" if stars >= 4 else "#6b7280")
+    return (
+        f'<span style="color:{color};font-size:14px;letter-spacing:1px;" '
+        f'title="AM Potential: {stars}/5 stars">{filled}'
+        f'<span style="color:#374151;">{empty}</span></span>'
+    )
+
+
 def _render_young_talent_section(data: dict) -> str:
     players = data.get("young_talent", [])
     narr    = (data.get("narratives") or {}).get("young_talent", "")
     narr_html = (f'<p style="color:var(--muted);font-size:13px;line-height:1.7;margin-bottom:16px;">'
                  f'{_esc(narr)}</p>') if narr else ""
+
+    has_stars = any(p.get("potential_stars") is not None for p in players)
+
     rows = ""
     for p in players:
-        sc = p.get("best_role_score", 0)
+        sc    = p.get("best_role_score", 0)
+        stars = p.get("potential_stars")
+        personality = p.get("personality", "")
+        star_cell = (
+            f'<td style="white-space:nowrap;">{_render_star_pips(stars)}</td>'
+            if has_stars else ""
+        )
+        personality_html = (
+            f'<span style="font-size:10px;color:var(--muted);display:block;">'
+            f'{_esc(personality)}</span>'
+        ) if personality else ""
         rows += f"""
       <tr>
-        <td style="font-size:13px;font-weight:500;">{_esc(p['name'])}</td>
+        <td style="font-size:13px;font-weight:500;">{_esc(p['name'])}{personality_html}</td>
         <td style="font-family:'JetBrains Mono';font-size:12px;">{p.get('age','—')}</td>
         <td style="font-size:11px;color:var(--muted);">{_esc(p.get('positions_raw',''))}</td>
         <td><span class="score-chip mono" style="color:{_score_color(sc)};
             background:rgba({_score_color(sc)[1:]},0.1);">{sc:.0f}</span>
             <span style="font-size:11px;color:var(--muted);margin-left:4px;">
               {_esc(p.get('best_role',''))}</span></td>
+        {star_cell}
         <td style="font-family:'JetBrains Mono';font-size:12px;color:var(--muted);">
           {_fmt_wage(p.get('wage',0))}</td>
       </tr>"""
+
+    star_header = "<th>AM Potential</th>" if has_stars else ""
+    colspan = "6" if has_stars else "5"
     return f"""
 <div class="section-eyebrow">Academy &amp; Development</div>
 <div class="section-heading">Young Talent to Nurture</div>
 {narr_html}
 <div class="card" style="padding:0;overflow:hidden;">
   <table class="data-table">
-    <thead><tr><th>Player</th><th>Age</th><th>Positions</th><th>Role Score</th><th>Wage</th></tr></thead>
-    <tbody>{rows or "<tr><td colspan='5' style='color:var(--muted);padding:16px;'>No U23 players above the capable threshold.</td></tr>"}</tbody>
+    <thead><tr><th>Player</th><th>Age</th><th>Positions</th><th>Role Score</th>{star_header}<th>Wage</th></tr></thead>
+    <tbody>{rows or f"<tr><td colspan='{colspan}' style='color:var(--muted);padding:16px;'>No U23 players above the capable threshold.</td></tr>"}</tbody>
   </table>
 </div>
 <hr class="divider">"""

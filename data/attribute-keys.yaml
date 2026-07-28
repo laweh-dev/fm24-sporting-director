@@ -90,3 +90,4 @@ identity:
   "Inf":               inf             # injury/status flag
   "Rec":               rec             # recommendation flag (range exports)
   "Media":             media           # media handling (squad exports)
+  "Potential":         potential_stars_raw   # AM star rating (1–5); empty if AM hasn't assessed

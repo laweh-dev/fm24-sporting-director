@@ -112,6 +112,39 @@ def _parse_transfer_value(raw: str) -> tuple[int, int]:
     return (0, 0)
 
 
+def _parse_potential_stars(raw: str) -> int | None:
+    """
+    Parse AM potential star rating from an FM24 HTML export cell.
+
+    FM exports stars in several formats depending on version:
+      - Unicode stars: ★★★ or ★★★½
+      - Plain integer: "3", "4"
+      - Half-star decimal: "3.5"
+      - -1 / blank: no assessment yet → None
+
+    Returns an int 1–5 (half-stars rounded up), or None if unrated.
+    """
+    if not raw or not raw.strip():
+        return None
+    s = raw.strip()
+
+    # Count solid star chars first
+    full  = s.count("★") + s.count("⭐")
+    half  = s.count("½") + s.count("✦") + s.count("☆")
+    if full > 0 or half > 0:
+        total = full + (1 if half else 0)
+        return min(5, max(1, total))
+
+    # Try numeric (integer or decimal)
+    try:
+        val = float(s)
+        if val <= 0:  # 0 or -1 = no assessment / uncertain
+            return None
+        return min(5, max(1, round(val + 0.4)))  # 3.5 → 4, 3.0 → 3
+    except ValueError:
+        return None
+
+
 def _parse_measurement(raw: str, unit: str) -> int:
     if not raw:
         return 0
@@ -210,6 +243,7 @@ def _cells_to_player(
         "positions_raw":      pos_raw,
         "positions":          _parse_positions(pos_raw),
         "attributes":         attr_data,
+        "potential_stars":    _parse_potential_stars(id_data.get("potential_stars_raw", "")),
     }
 
 

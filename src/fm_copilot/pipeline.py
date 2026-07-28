@@ -330,6 +330,7 @@ def _build_report_data(
     young_talent = []
     for p in sorted(squad, key=lambda x: x.get("best_role_score", 0), reverse=True):
         if p.get("age", 30) <= 23 and p.get("best_role_score", 0) >= capable_t:
+            stars = p.get("potential_stars")
             young_talent.append({
                 "name":            p["name"],
                 "age":             p.get("age", "?"),
@@ -337,6 +338,9 @@ def _build_report_data(
                 "best_role":       p.get("best_role", "—"),
                 "best_role_score": p.get("best_role_score", 0),
                 "wage":            p.get("wage", 0),
+                "personality":     p.get("personality", ""),
+                "potential_stars": stars,
+                "contract_expires": str(p.get("contract_expires", "")),
             })
 
     # ── Decline risks (age ≥ 30 and below capable threshold) ─────────────────
@@ -515,7 +519,11 @@ def run_report(config: dict) -> str:
 
     # DoF-recommended priorities (data-driven) drive the shortlist and signing section.
     # The AI compares these against user_squad_read to produce the alignment commentary.
-    dof_recs    = dof_recommended_priorities(analysis.get("gaps", []), config.get("dof_mode", "edwards"))
+    dof_recs    = dof_recommended_priorities(
+        analysis.get("gaps", []),
+        config.get("dof_mode", "edwards"),
+        squad=squad,
+    )
     pri_configs = _build_priorities_config([r["label"] for r in dof_recs], config)
 
     if market:
